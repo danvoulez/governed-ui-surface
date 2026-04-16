@@ -34,7 +34,8 @@ console.log(JSON.stringify({
   canonical_edit: finalResult.canonicalEdit,
   token_resolution: `${finalResult.tokens.before.resolved.value}px -> ${finalResult.tokens.after.resolved.value}px`,
   verification: finalResult.verification.status,
-  stage_artifacts: finalResult.stages.map((stage) => ({ id: stage.id, artifact: stage.artifactPath })),
+  stage_artifacts: finalResult.stages.map((stage) => ({ id: stage.id, artifact: stage.artifactPath, facts: stage.structuredFacts })),
+  rollback_trace: finalResult.rollbackTrace,
   ledger_events: finalResult.ledger.map((item) => item.event),
   rollback_plan: finalResult.rollbackPlan.steps
 }, null, 2));

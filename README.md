@@ -37,8 +37,9 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 2. Click **Apply governed edit**
 3. Watch PlaceCard `header_body_gap` move from `cozy` to `relaxed`
 4. Confirm token diff `16px -> 24px` and changed-property badge
-5. Inspect artifact-backed pipeline stages and ledger events
-6. Click **Execute rollback plan** and observe post-rollback verification (`16px` restored)
+5. Inspect artifact-backed pipeline stages with structured facts (operator/action/axis, canonical edit id, token aliases, verification checks)
+6. Confirm unchanged-scope chips near preview (structure/copy/behavior/surface/density)
+7. Click **Execute rollback plan** and observe rollback trace (`requested → applied → post-verification`) with `16px` restored
 
 ---
 
@@ -77,8 +78,9 @@ Coverage checks:
 
 - canonical artifact data drives semantic transition
 - resolved token aliases and px values match canonical edit
-- stage inspector maps to canonical artifact paths
-- rollback returns to canonical baseline and appends rollback events
+- stage inspector exposes structured facts derived from canonical artifacts
+- verification surfaces unchanged scope from semantic diff
+- rollback trace shows requested → applied → post-verification
 - downstream axis mapping does not invent unsupported canonical axes
 
 ---
