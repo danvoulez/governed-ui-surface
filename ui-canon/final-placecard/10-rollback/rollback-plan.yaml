@@ -1,0 +1,17 @@
+version: 1
+rollback_id: rollback_placecard_2026_04_16_001
+target_edit_id: uiedit_2026_04_16_placecard_gap_001
+steps:
+  - step: "alterar canonical_ui_edit.to de relaxed para cozy"
+    file: ui-canon/final-placecard/02-canonical-edit/ui-edit.yaml
+  - step: "reexecutar resolução de tokens"
+    file: ui-canon/final-placecard/04-token-resolution/resolved-tokens.json
+  - step: "reprojetar Tailwind e CVA"
+    files:
+      - ui-canon/final-placecard/06-projections/tailwind.theme.css
+      - ui-canon/final-placecard/06-projections/component.variants.ts
+  - step: "publicar novo evento no ledger com motivo"
+    file: ui-canon/final-placecard/09-ledger/events.jsonl
+success_condition:
+  header_body_gap: cozy
+  resolved_px: 16

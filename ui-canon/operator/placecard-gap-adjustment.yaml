@@ -1,0 +1,15 @@
+input_text: "isso precisa ficar um pouco mais abaixo"
+operator_translation:
+  target: PlaceCard.header_to_body
+  intent_type: vertical_rhythm_adjustment
+  direction: increase_gap
+  magnitude: one_semantic_step
+  policy_class: presentational_low_risk
+  confidence: 0.81
+  ask_confirmation: false
+canonical_ui_edit:
+  target: place_card.header_body_gap
+  from: cozy
+  to: relaxed
+  reason: increase vertical rhythm between title area and body content
+  policy_class: low_risk_presentational

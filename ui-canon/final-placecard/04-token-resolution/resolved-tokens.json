@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "version": 1,
+    "resolvedAt": "2026-04-16T00:00:00Z",
+    "sourceEdit": "uiedit_2026_04_16_placecard_gap_001"
+  },
+  "primitives": {
+    "space": {
+      "2": { "value": 8, "unit": "px" },
+      "4": { "value": 16, "unit": "px" },
+      "6": { "value": 24, "unit": "px" }
+    },
+    "radius": {
+      "xl": { "value": 20, "unit": "px" }
+    }
+  },
+  "semantic": {
+    "component": {
+      "placeCard": {
+        "headerBodyGap": {
+          "compact": { "alias": "{space.2}", "resolved": { "value": 8, "unit": "px" } },
+          "cozy": { "alias": "{space.4}", "resolved": { "value": 16, "unit": "px" } },
+          "relaxed": { "alias": "{space.6}", "resolved": { "value": 24, "unit": "px" } }
+        },
+        "activeState": {
+          "before": "cozy",
+          "after": "relaxed"
+        }
+      }
+    }
+  },
+  "validation": {
+    "aliases": {
+      "status": "pass",
+      "circularReferences": []
+    },
+    "requiredTypes": {
+      "status": "pass",
+      "missing": []
+    }
+  }
+}

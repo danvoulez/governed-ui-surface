@@ -1,0 +1,42 @@
+{
+  "$schema": "https://www.designtokens.org/TR/drafts/format/",
+  "space": {
+    "$type": "dimension",
+    "2": { "$value": { "value": 8, "unit": "px" } },
+    "4": { "$value": { "value": 16, "unit": "px" } },
+    "6": { "$value": { "value": 24, "unit": "px" } }
+  },
+  "radius": {
+    "$type": "dimension",
+    "md": { "$value": { "value": 12, "unit": "px" } },
+    "xl": { "$value": { "value": 20, "unit": "px" } }
+  },
+  "color": {
+    "surface": {
+      "$type": "color",
+      "default": { "$value": "#F8FAFC" },
+      "elevated": { "$value": "#FFFFFF" }
+    },
+    "stroke": {
+      "$type": "color",
+      "default": { "$value": "#E2E8F0" }
+    },
+    "text": {
+      "$type": "color",
+      "primary": { "$value": "#0F172A" },
+      "muted": { "$value": "#475569" }
+    }
+  },
+  "shadow": {
+    "$type": "shadow",
+    "card": {
+      "$value": {
+        "color": "rgba(15, 23, 42, 0.12)",
+        "offsetX": "0px",
+        "offsetY": "4px",
+        "blur": "16px",
+        "spread": "0px"
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+version: 1
+components:
+  PlaceCard:
+    accepts_axes:
+      - density
+      - surface
+      - header_body_gap
+    defaults:
+      density: cozy
+      surface: default
+      header_body_gap: cozy
+    rules:
+      - when:
+          density: relaxed
+        enforce:
+          header_body_gap: relaxed
+      - when:
+          surface: elevated
+        allow:
+          shadow: card
+  ApprovalCard:
+    accepts_axes:
+      - risk_posture
+      - prominence
+      - decision_state

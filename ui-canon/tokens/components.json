@@ -1,0 +1,27 @@
+{
+  "component": {
+    "placeCard": {
+      "surface": {
+        "$type": "color",
+        "default": { "$value": "{color.surface.default}" },
+        "elevated": { "$value": "{color.surface.elevated}" }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{color.stroke.default}"
+      },
+      "titleColor": {
+        "$type": "color",
+        "$value": "{color.text.primary}"
+      },
+      "bodyColor": {
+        "$type": "color",
+        "$value": "{color.text.muted}"
+      },
+      "shadow": {
+        "$type": "shadow",
+        "$value": "{shadow.card}"
+      }
+    }
+  }
+}

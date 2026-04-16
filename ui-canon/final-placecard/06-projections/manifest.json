@@ -1,0 +1,28 @@
+{
+  "generated": [
+    {
+      "file": "ui-canon/final-placecard/06-projections/tailwind.theme.css",
+      "from": [
+        "ui-canon/tokens/primitives.json",
+        "ui-canon/tokens/semantic.json",
+        "ui-canon/tokens/components.json",
+        "ui-canon/final-placecard/03-ir/ui-ir.yaml",
+        "ui-canon/final-placecard/04-token-resolution/resolved-tokens.json"
+      ]
+    },
+    {
+      "file": "ui-canon/final-placecard/06-projections/component.variants.ts",
+      "from": [
+        "ui-canon/grammar/components.yaml",
+        "ui-canon/final-placecard/07-component-contracts/place-card.contract.yaml",
+        "ui-canon/final-placecard/02-canonical-edit/ui-edit.yaml"
+      ]
+    },
+    {
+      "file": "ui-canon/final-placecard/06-projections/place-card.example.tsx",
+      "from": [
+        "ui-canon/final-placecard/06-projections/component.variants.ts"
+      ]
+    }
+  ]
+}

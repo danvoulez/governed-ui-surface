@@ -1,0 +1,31 @@
+version: 1
+component: PlaceCard
+accepts_axes:
+  density:
+    values: [compact, cozy, relaxed]
+    default: cozy
+  surface:
+    values: [default, elevated]
+    default: default
+  header_body_gap:
+    values: [compact, cozy, relaxed]
+    default: cozy
+  decision_state:
+    values: [idle, pending, blocked]
+    default: idle
+constraints:
+  - if:
+      density: relaxed
+    then:
+      header_body_gap: relaxed
+  - if:
+      decision_state: blocked
+    then:
+      interactions: disabled
+render_contract:
+  required_slots:
+    - header
+    - body
+  forbidden_mutations:
+    - reorder_slots
+    - remove_required_slot

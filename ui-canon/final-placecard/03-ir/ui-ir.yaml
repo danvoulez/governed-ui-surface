@@ -1,0 +1,55 @@
+version: 1
+ir_id: ir_placecard_2026_04_16_001
+edit_ref: ui-canon/final-placecard/02-canonical-edit/ui-edit.yaml
+nodes:
+  - id: component.placeCard
+    kind: component_contract
+    axes:
+      density: [compact, cozy, relaxed]
+      surface: [default, elevated]
+      header_body_gap: [compact, cozy, relaxed]
+    defaults:
+      density: cozy
+      surface: default
+      header_body_gap: cozy
+  - id: semantic.axis.header_body_gap
+    kind: semantic_axis
+    maps_to_token_group: component.placeCard.headerBodyGap
+    scale:
+      compact: "{space.2}"
+      cozy: "{space.4}"
+      relaxed: "{space.6}"
+  - id: policy.presentational_low_risk
+    kind: policy_profile
+    auto_apply: true
+    allow_intents:
+      - vertical_rhythm_adjustment
+    deny_intents:
+      - structural_layout_change
+      - content_rewrite
+edges:
+  - from: canonical_edit
+    to: semantic.axis.header_body_gap
+    relation: mutates_state
+  - from: semantic.axis.header_body_gap
+    to: component.placeCard
+    relation: constrains_variant_output
+  - from: policy.presentational_low_risk
+    to: canonical_edit
+    relation: authorizes
+resolution:
+  before:
+    place_card.header_body_gap: cozy
+    resolved_dimension: "{space.4}"
+    resolved_px: 16
+  after:
+    place_card.header_body_gap: relaxed
+    resolved_dimension: "{space.6}"
+    resolved_px: 24
+invariants:
+  - id: inv_placecard_density_relaxed_requires_relaxed_gap
+    statement: "if density=relaxed then header_body_gap=relaxed"
+    status: satisfied
+  - id: inv_no_structural_diff
+    statement: "no structural tree changes in component contract"
+    status: satisfied

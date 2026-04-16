@@ -1,0 +1,11 @@
+version: 1
+policies:
+  presentational_low_risk:
+    auto_apply: true
+    allow_intents:
+      - vertical_rhythm_adjustment
+    deny:
+      - structural_layout_change
+      - copy_rewrite
+    requires_confirmation_if:
+      confidence_below: 0.55
