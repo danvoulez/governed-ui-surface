@@ -30,12 +30,21 @@ const finalResult = mode === "rollback" ? rollbackGovernedEdit(applied, snapshot
 console.log(JSON.stringify({
   mode: finalResult.mode,
   input: request,
-  interpretedIntent: finalResult.interpretedIntent,
+  interpreted_intent: finalResult.interpretedIntent,
   canonical_edit: finalResult.canonicalEdit,
   token_resolution: `${finalResult.tokens.before.resolved.value}px -> ${finalResult.tokens.after.resolved.value}px`,
-  verification: finalResult.verification.status,
+  trust_unchanged_scope: finalResult.verification.unchanged,
+  verification: {
+    status: finalResult.verification.status,
+    checks: finalResult.verification.checks,
+    visual_expected: finalResult.verification.visualExpected
+  },
   stage_artifacts: finalResult.stages.map((stage) => ({ id: stage.id, artifact: stage.artifactPath, facts: stage.structuredFacts })),
-  rollback_trace: finalResult.rollbackTrace,
-  ledger_events: finalResult.ledger.map((item) => item.event),
-  rollback_plan: finalResult.rollbackPlan.steps
+  rollback: {
+    plan_id: finalResult.rollbackPlan.id,
+    target_edit_id: finalResult.rollbackPlan.targetEditId,
+    trace: finalResult.rollbackTrace,
+    restored: finalResult.rollbackVerification ?? null
+  },
+  ledger_events: finalResult.ledger.map((item) => item.event)
 }, null, 2));

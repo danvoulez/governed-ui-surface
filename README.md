@@ -37,9 +37,9 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 2. Click **Apply governed edit**
 3. Watch PlaceCard `header_body_gap` move from `cozy` to `relaxed`
 4. Confirm token diff `16px -> 24px` and changed-property badge
-5. Inspect artifact-backed pipeline stages with structured facts (operator/action/axis, canonical edit id, token aliases, verification checks)
-6. Confirm unchanged-scope chips near preview (structure/copy/behavior/surface/density)
-7. Click **Execute rollback plan** and observe rollback trace (`requested → applied → post-verification`) with `16px` restored
+5. Inspect artifact-backed operator console stages with grouped facts (policy checks, rationale, forbidden changes, IR before/after px, verification unchanged scope, rollback target edit)
+6. Confirm trust boundary chips near preview: semantic-diff unchanged + verification unchanged + enforced surface/density invariants
+7. Click **Execute rollback plan** and observe the operation trail (`requested → applied → post-verification`) with target edit id and `16px` restored
 
 ---
 
@@ -51,7 +51,7 @@ This demo shows a safer path:
 - NL input is interpreted by policy-aware operator logic
 - the **canonical edit** (`place_card.header_body_gap`) remains the authority
 - app and CLI share the same compact pipeline core (`shared/pipeline-core.mjs`)
-- verification, evidence, and ledger are first-class
+- verification, evidence, and ledger are first-class, including explicit unchanged-scope trust signals
 - rollback is explicit, visible, and appended to the event stream
 
 ---

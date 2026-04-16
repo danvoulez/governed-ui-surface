@@ -7,6 +7,7 @@ type Props = {
   badge?: string;
   highlight?: boolean;
   governed?: boolean;
+  mode: "before" | "governed" | "rolled_back";
 };
 
 const gapPx: Record<GapState, number> = {
@@ -15,21 +16,22 @@ const gapPx: Record<GapState, number> = {
   relaxed: 24
 };
 
-export function PlaceCardPreview({ gap, title, body, badge, highlight = false, governed = false }: Props) {
+export function PlaceCardPreview({ gap, title, body, badge, highlight = false, governed = false, mode }: Props) {
   return (
-    <article className="place-card" data-gap={gap} data-highlight={highlight} data-governed={governed}>
+    <article className="place-card" data-gap={gap} data-highlight={highlight} data-governed={governed} data-mode={mode}>
       {badge ? <span className="badge">{badge}</span> : null}
       <header className="place-card-header">{title}</header>
+      <div className="spacing-annotation">Only this semantic axis changed: <code>header_body_gap</code></div>
       <div className="gap-guide" aria-hidden="true">
         <span className="guide-line" />
         <span className="guide-value">{gapPx[gap]}px</span>
         <span className="guide-line" />
       </div>
-      <div className="gap-meter" aria-hidden="true">header_body_gap token: {gap}</div>
+      <div className="gap-meter" aria-hidden="true">Token state: {gap} ({gapPx[gap]}px)</div>
       <section className="place-card-body" style={{ marginTop: gapPx[gap] }}>
         {body}
       </section>
-      <small className="token-note">Only spacing axis changed: header_body_gap = {gap} ({gapPx[gap]}px)</small>
+      <small className="token-note">Governed canonical axis value: header_body_gap = {gap}</small>
     </article>
   );
 }
