@@ -5,6 +5,7 @@ type Props = {
   title: string;
   body: string;
   badge?: string;
+  highlight?: boolean;
 };
 
 const gapPx: Record<GapState, number> = {
@@ -13,11 +14,12 @@ const gapPx: Record<GapState, number> = {
   relaxed: 24
 };
 
-export function PlaceCardPreview({ gap, title, body, badge }: Props) {
+export function PlaceCardPreview({ gap, title, body, badge, highlight = false }: Props) {
   return (
-    <article className="place-card" data-gap={gap}>
+    <article className="place-card" data-gap={gap} data-highlight={highlight}>
       {badge ? <span className="badge">{badge}</span> : null}
       <header className="place-card-header">{title}</header>
+      <div className="gap-meter" aria-hidden="true">↕ {gapPx[gap]}px governed gap</div>
       <section className="place-card-body" style={{ marginTop: gapPx[gap] }}>
         {body}
       </section>

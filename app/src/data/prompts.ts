@@ -1,16 +1,5 @@
+import { PROMPT_PRESETS } from "../../../shared/pipeline-core.mjs";
 import type { GapState } from "../pipeline/types";
 
-export const promptMap: Record<string, GapState> = {
-  "isso precisa ficar um pouco mais abaixo": "relaxed",
-  "isso está apertado demais": "relaxed",
-  "deixa isso mais arejado": "relaxed",
-  "quero um visual mais denso": "compact"
-};
-
+export const promptMap = PROMPT_PRESETS as Record<string, GapState>;
 export const baselineGap: GapState = "cozy";
-
-export const gapTokenPx: Record<GapState, number> = {
-  compact: 8,
-  cozy: 16,
-  relaxed: 24
-};
