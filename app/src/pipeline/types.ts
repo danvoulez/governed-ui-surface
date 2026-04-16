@@ -1,28 +1,66 @@
 export type GapState = "compact" | "cozy" | "relaxed";
 
-export type CanonicalEdit = {
-  target: "place_card.header_body_gap";
-  from: GapState;
-  to: GapState;
-  semanticStepDelta: -1 | 0 | 1;
-  reason: string;
-};
-
-export type PipelineStage = {
+export type StageView = {
   id: string;
   label: string;
-  artifact: string;
+  status: string;
+  artifactPath: string;
+  excerpt: string;
+};
+
+export type LedgerEvent = {
+  ts: string;
+  event: string;
+  ref?: string;
+  status?: string;
+  confidence?: number;
+  reason?: string;
+  to?: string;
 };
 
 export type PipelineResult = {
+  mode: "proposed" | "applied" | "rolled_back";
   input: string;
+  promptRecognized: boolean;
   interpretedIntent: string;
-  canonicalEdit: CanonicalEdit;
-  resolvedTokenBefore: number;
-  resolvedTokenAfter: number;
-  verificationPassed: boolean;
-  stages: PipelineStage[];
-  eventLog: string[];
-  evidence: string[];
-  rollbackPlan: string[];
+  canonicalEdit: {
+    target: string;
+    from: GapState;
+    to: GapState;
+    semanticStepDelta: number;
+    policyClass: string;
+  };
+  tokens: {
+    before: { alias: string; resolved: { value: number; unit: string } };
+    after: { alias: string; resolved: { value: number; unit: string } };
+  };
+  verification: {
+    status: "pass" | "fail";
+    checks: string[];
+    unchanged: string[];
+  };
+  evidence: {
+    diffSummary: string[];
+    semanticDiffPath: string;
+    reportPath: string;
+  };
+  rollbackPlan: {
+    id: string;
+    successState: GapState;
+    successPx: number;
+    steps: string[];
+  };
+  stages: StageView[];
+  ledger: LedgerEvent[];
+  productFraming: {
+    changed: string;
+    unchanged: string[];
+    whyLowRisk: string;
+    whySafer: string;
+  };
+  rollbackVerification?: {
+    status: "pass" | "fail";
+    expectedPx: number;
+    actualPx: number;
+  };
 };

@@ -1,26 +1,40 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import { applyGovernedEdit, parseCanonicalArtifacts, rollbackGovernedEdit, runGovernedPipeline } from "../shared/pipeline-core.mjs";
 
 const request = process.argv[2] ?? "isso precisa ficar um pouco mais abaixo";
-const map = {
-  "isso precisa ficar um pouco mais abaixo": "relaxed",
-  "isso está apertado demais": "relaxed",
-  "deixa isso mais arejado": "relaxed",
-  "quero um visual mais denso": "compact"
+const mode = process.argv[3] ?? "apply";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const read = (path) => readFileSync(resolve(root, path), "utf8");
+
+const artifacts = {
+  humanRequest: read("ui-canon/final-placecard/00-input/human-request.md"),
+  operator: read("ui-canon/final-placecard/01-operator/operator-translation.yaml"),
+  uiEdit: read("ui-canon/final-placecard/02-canonical-edit/ui-edit.yaml"),
+  ir: read("ui-canon/final-placecard/03-ir/ui-ir.yaml"),
+  resolvedTokens: read("ui-canon/final-placecard/04-token-resolution/resolved-tokens.json"),
+  report: read("ui-canon/final-placecard/08-verification/report.yaml"),
+  semanticDiff: read("ui-canon/final-placecard/08-verification/semantic-diff.md"),
+  ledger: read("ui-canon/final-placecard/09-ledger/events.jsonl"),
+  rollbackPlan: read("ui-canon/final-placecard/10-rollback/rollback-plan.yaml")
 };
 
-const to = map[request.toLowerCase()] ?? "cozy";
-const from = "cozy";
-const px = { compact: 8, cozy: 16, relaxed: 24 };
+const snapshot = parseCanonicalArtifacts(artifacts);
+const proposed = runGovernedPipeline(request, snapshot);
+const applied = applyGovernedEdit(proposed);
+const finalResult = mode === "rollback" ? rollbackGovernedEdit(applied, snapshot) : applied;
 
-const summary = {
+console.log(JSON.stringify({
+  mode: finalResult.mode,
   input: request,
-  operator: "vertical_rhythm_adjustment",
-  canonical_edit: { target: "place_card.header_body_gap", from, to },
-  token_resolution: `${px[from]}px -> ${px[to]}px`,
-  verification: "pass",
-  rollback_target: from,
-  source: readFileSync(new URL("../ui-canon/final-placecard/00-input/human-request.md", import.meta.url), "utf8").split("\n")[2]
-};
-
-console.log(JSON.stringify(summary, null, 2));
+  interpretedIntent: finalResult.interpretedIntent,
+  canonical_edit: finalResult.canonicalEdit,
+  token_resolution: `${finalResult.tokens.before.resolved.value}px -> ${finalResult.tokens.after.resolved.value}px`,
+  verification: finalResult.verification.status,
+  stage_artifacts: finalResult.stages.map((stage) => ({ id: stage.id, artifact: stage.artifactPath })),
+  ledger_events: finalResult.ledger.map((item) => item.event),
+  rollback_plan: finalResult.rollbackPlan.steps
+}, null, 2));

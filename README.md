@@ -6,16 +6,15 @@ You type a vague request like:
 
 > **“isso precisa ficar um pouco mais abaixo”**
 
-…and the system runs a governed pipeline:
+…and the system performs a governed operation backed by canonical files in `ui-canon/final-placecard/`:
 
-1. operator interpretation
-2. canonical semantic edit
-3. semantic IR
-4. token resolution
-5. projected UI artifacts
-6. verification
-7. ledger event
-8. rollback plan (and visible rollback)
+1. operator interpretation (`01-operator/operator-translation.yaml`)
+2. canonical semantic edit (`02-canonical-edit/ui-edit.yaml`)
+3. semantic IR (`03-ir/ui-ir.yaml`)
+4. token resolution (`04-token-resolution/resolved-tokens.json`)
+5. verification + semantic diff (`08-verification/*`)
+6. immutable ledger stream (`09-ledger/events.jsonl`)
+7. rollback plan and post-rollback ledger events (`10-rollback/rollback-plan.yaml`)
 
 The key value is not “it changed CSS.”
 The key value is: **it changed UI in a controlled, explainable, reversible way**.
@@ -35,11 +34,11 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 ### Magic moment to try first
 
 1. Keep the input as `isso precisa ficar um pouco mais abaixo`
-2. Click **Apply**
-3. See the PlaceCard move from `header_body_gap: cozy -> relaxed`
-4. Confirm token diff: `16px -> 24px`
-5. Inspect stages `00–10`, verification badge, evidence, and ledger
-6. Click **Rollback** and see it return to `cozy (16px)`
+2. Click **Apply governed edit**
+3. Watch PlaceCard `header_body_gap` move from `cozy` to `relaxed`
+4. Confirm token diff `16px -> 24px` and changed-property badge
+5. Inspect artifact-backed pipeline stages and ledger events
+6. Click **Execute rollback plan** and observe post-rollback verification (`16px` restored)
 
 ---
 
@@ -49,35 +48,21 @@ Direct class edits are fast but weak on governance.
 This demo shows a safer path:
 
 - NL input is interpreted by policy-aware operator logic
-- the **canonical edit** (`place_card.header_body_gap`) is the source of truth
-- projections are derived artifacts, not manual drift
-- verification and ledger are first-class
-- rollback is explicit and visible
+- the **canonical edit** (`place_card.header_body_gap`) remains the authority
+- app and CLI share the same compact pipeline core (`shared/pipeline-core.mjs`)
+- verification, evidence, and ledger are first-class
+- rollback is explicit, visible, and appended to the event stream
 
 ---
 
 ## Repo structure (governance-first)
 
-- `app/` → runnable React + Vite demo UI
-- `scripts/run-pipeline.mjs` → tiny CLI pipeline runner
-- `ui-canon/final-placecard/` → single authoritative canonical pipeline example
-- `ui-canon/archive/` → legacy non-authoritative operator/projection artifacts
+- `app/` → runnable React + Vite operator surface
+- `scripts/run-pipeline.mjs` → CLI summary backed by shared core
+- `shared/pipeline-core.mjs` → shared pipeline model/parser for app + CLI
+- `ui-canon/final-placecard/` → single authoritative canonical artifact set
+- `ui-canon/archive/` → legacy non-authoritative material
 - `ui-canon/grammar/`, `ui-canon/tokens/`, `ui-canon/evidence/` → governance substrate
-
----
-
-## Semantic naming system
-
-We intentionally keep layer-appropriate names and map them explicitly:
-
-- canonical edit axis: `place_card.header_body_gap`
-- grammar/contract axis: `header_body_gap`
-- token/projection JS axis: `headerBodyGap`
-- DOM projection attr: `data-header-body-gap`
-
-See:
-- `ui-canon/grammar/components.yaml`
-- `ui-canon/final-placecard/07-component-contracts/place-card.contract.yaml`
 
 ---
 
@@ -88,21 +73,23 @@ cd app
 npm test
 ```
 
-Coverage includes:
+Coverage checks:
 
-- canonical edit changes resolved spacing token (`16px -> 24px`)
-- projections reflect semantic change
-- rollback restores original semantic state
-- no unsupported semantic axis appears only downstream
+- canonical artifact data drives semantic transition
+- resolved token aliases and px values match canonical edit
+- stage inspector maps to canonical artifact paths
+- rollback returns to canonical baseline and appends rollback events
+- downstream axis mapping does not invent unsupported canonical axes
 
 ---
 
-## One-command pipeline check (CLI)
+## CLI pipeline summary
 
 From repo root:
 
 ```bash
 node scripts/run-pipeline.mjs "isso precisa ficar um pouco mais abaixo"
+node scripts/run-pipeline.mjs "isso precisa ficar um pouco mais abaixo" rollback
 ```
 
-Prints a compact pipeline summary with canonical edit, token resolution, verification, and rollback target.
+The second command executes governed rollback in the same shared model and shows rollback events in ledger output.
