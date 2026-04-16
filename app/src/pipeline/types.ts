@@ -1,11 +1,17 @@
 export type GapState = "compact" | "cozy" | "relaxed";
 
+export type StageFact = {
+  key: string;
+  value: string;
+};
+
 export type StageView = {
   id: string;
   label: string;
   status: string;
   artifactPath: string;
-  excerpt: string;
+  structuredFacts: StageFact[];
+  rawExcerpt?: string;
 };
 
 export type LedgerEvent = {
@@ -16,6 +22,19 @@ export type LedgerEvent = {
   confidence?: number;
   reason?: string;
   to?: string;
+};
+
+export type RollbackTraceStep = {
+  event: "rollback_requested" | "rollback_applied" | "post_rollback_verification_completed";
+  status: "pending" | "done";
+  ts?: string;
+  ref?: string;
+};
+
+export type VerificationCheck = {
+  id: string;
+  status: string;
+  detail: string;
 };
 
 export type PipelineResult = {
@@ -36,7 +55,7 @@ export type PipelineResult = {
   };
   verification: {
     status: "pass" | "fail";
-    checks: string[];
+    checks: VerificationCheck[];
     unchanged: string[];
   };
   evidence: {
@@ -50,12 +69,13 @@ export type PipelineResult = {
     successPx: number;
     steps: string[];
   };
+  rollbackTrace: RollbackTraceStep[];
   stages: StageView[];
   ledger: LedgerEvent[];
   productFraming: {
     changed: string;
     unchanged: string[];
-    whyLowRisk: string;
+    whyAllowed: string;
     whySafer: string;
   };
   rollbackVerification?: {

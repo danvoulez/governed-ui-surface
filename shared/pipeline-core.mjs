@@ -32,13 +32,15 @@ function extractYamlValue(text, key) {
 
 function extractListAfterHeader(text, headerRegex) {
   const header = text.match(headerRegex);
-  if (!header || (header.index !== 0 && !header.index)) return [];
+  if (!header || typeof header.index !== "number") return [];
   const after = text.slice(header.index + header[0].length);
-  return after
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "))
-    .map((line) => line.slice(2).replace(/^"|"$/g, ""));
+  const lines = [];
+  for (const raw of after.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("## ")) break;
+    if (line.startsWith("- ")) lines.push(line.slice(2).replace(/^"|"$/g, ""));
+  }
+  return lines;
 }
 
 function parseJsonLines(jsonl) {
@@ -49,6 +51,75 @@ function parseJsonLines(jsonl) {
     .map((line) => JSON.parse(line));
 }
 
+function parseVerificationChecks(report) {
+  const lines = report.split("\n");
+  const checks = [];
+  let current = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- id:")) {
+      if (current) checks.push(current);
+      current = { id: trimmed.replace(/^- id:\s*/, ""), status: "", detail: "" };
+      continue;
+    }
+    if (!current) continue;
+    if (trimmed.startsWith("status:")) {
+      current.status = trimmed.replace(/^status:\s*/, "");
+    }
+    if (trimmed.startsWith("detail:")) {
+      current.detail = trimmed.replace(/^detail:\s*/, "").replace(/^"|"$/g, "");
+    }
+  }
+
+  if (current) checks.push(current);
+  return checks;
+}
+
+function parseRollbackSteps(plan) {
+  return plan
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- step:"))
+    .map((line) => line.replace(/^- step:\s*/, "").replace(/^"|"$/g, ""));
+}
+
+function parseCanonicalBlastRadius(editYaml) {
+  const components = [];
+  const screens = [];
+  const expectedSideEffects = [];
+  let mode = "";
+
+  for (const raw of editYaml.split("\n")) {
+    const line = raw.trim();
+    if (line === "components:") mode = "components";
+    else if (line === "screens:") mode = "screens";
+    else if (line === "expected_side_effects:") mode = "effects";
+    else if (!line.startsWith("- ")) mode = "";
+
+    if (!line.startsWith("- ")) continue;
+    const value = line.slice(2).replace(/^"|"$/g, "");
+    if (mode === "components") components.push(value);
+    if (mode === "screens") screens.push(value);
+    if (mode === "effects") expectedSideEffects.push(value);
+  }
+
+  return { components, screens, expectedSideEffects };
+}
+
+function buildRollbackTrace(ledgerEvents) {
+  const wanted = ["rollback_requested", "rollback_applied", "post_rollback_verification_completed"];
+  return wanted.map((eventName) => {
+    const hit = ledgerEvents.find((entry) => entry.event === eventName);
+    return {
+      event: eventName,
+      status: hit ? "done" : "pending",
+      ts: hit?.ts,
+      ref: hit?.ref
+    };
+  });
+}
+
 export function parseCanonicalArtifacts(artifacts) {
   const resolvedTokens = JSON.parse(artifacts.resolvedTokens);
   const ledgerEvents = parseJsonLines(artifacts.ledger);
@@ -57,18 +128,16 @@ export function parseCanonicalArtifacts(artifacts) {
   const canonicalAfter = extractYamlValue(artifacts.uiEdit, "to");
   const target = extractYamlValue(artifacts.uiEdit, "target");
   const operatorType = extractYamlValue(artifacts.operator, "type");
+  const operatorAction = extractYamlValue(artifacts.operator, "action");
+  const operatorAxis = extractYamlValue(artifacts.operator, "axis");
   const operatorConfidence = Number(extractYamlValue(artifacts.operator, "confidence"));
   const policyAllowed = extractYamlValue(artifacts.operator, "allowed") === "true";
 
   const stateMap = resolvedTokens.semantic.component.placeCard.headerBodyGap;
-  const checks = extractListAfterHeader(artifacts.report, /^checks:\s*$/m);
+  const verificationChecks = parseVerificationChecks(artifacts.report);
   const unchanged = extractListAfterHeader(artifacts.semanticDiff, /^## What did NOT change\s*$/m);
-
-  const rollbackSteps = artifacts.rollbackPlan
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('- step:'))
-    .map((line) => line.replace(/^- step:\s*/, "").replace(/^"|"$/g, ""));
+  const summaryChanged = extractListAfterHeader(artifacts.semanticDiff, /^## What changed\s*$/m);
+  const blastRadius = parseCanonicalBlastRadius(artifacts.uiEdit);
 
   return {
     heroPromptFromArtifact: extractQuoted(artifacts.humanRequest, "isso precisa ficar um pouco mais abaixo"),
@@ -76,16 +145,20 @@ export function parseCanonicalArtifacts(artifacts) {
       target,
       before,
       after: canonicalAfter,
-      editId: extractYamlValue(artifacts.uiEdit, "edit_id")
+      editId: extractYamlValue(artifacts.uiEdit, "edit_id"),
+      blastRadius
     },
     operator: {
       type: operatorType,
+      action: operatorAction,
+      axis: operatorAxis,
       confidence: Number.isNaN(operatorConfidence) ? 0 : operatorConfidence,
       policyAllowed,
-      decision: extractYamlValue(artifacts.operator, "action")
+      decisionReason: extractYamlValue(artifacts.operator, "reason")
     },
     ir: {
-      axis: extractYamlValue(artifacts.operator, "axis"),
+      component: extractYamlValue(artifacts.operator, "component"),
+      axis: operatorAxis,
       relation: extractYamlValue(artifacts.ir, "relation"),
       invariantCount: (artifacts.ir.match(/- id:\s*inv_/g) ?? []).length
     },
@@ -99,17 +172,18 @@ export function parseCanonicalArtifacts(artifacts) {
       afterActive: resolvedTokens.semantic.component.placeCard.activeState.after
     },
     verification: {
-      checks,
+      checks: verificationChecks,
       unchanged,
-      summaryChanged: extractListAfterHeader(artifacts.semanticDiff, /^## What changed\s*$/m)
+      summaryChanged
     },
     rollback: {
       id: extractYamlValue(artifacts.rollbackPlan, "rollback_id"),
       successState: extractYamlValue(artifacts.rollbackPlan, "header_body_gap"),
       successPx: Number(extractYamlValue(artifacts.rollbackPlan, "resolved_px")),
-      steps: rollbackSteps
+      steps: parseRollbackSteps(artifacts.rollbackPlan)
     },
     ledgerEvents,
+    rollbackTrace: buildRollbackTrace(ledgerEvents),
     stagePaths: STAGE_PATHS
   };
 }
@@ -123,19 +197,111 @@ function toDelta(from, to) {
   return GAP_ORDER.indexOf(to) - GAP_ORDER.indexOf(from);
 }
 
+function facts(entries) {
+  return entries.filter((entry) => entry.value !== "" && entry.value !== undefined);
+}
+
 function buildStages(snapshot, from, to) {
   const fromToken = snapshot.tokens.byState[from];
   const toToken = snapshot.tokens.byState[to];
 
   return [
-    { id: "00", label: "Human Input", status: "captured", artifactPath: snapshot.stagePaths["00"], excerpt: snapshot.heroPromptFromArtifact },
-    { id: "01", label: "Operator Translation", status: snapshot.operator.policyAllowed ? "allowed" : "blocked", artifactPath: snapshot.stagePaths["01"], excerpt: `${snapshot.operator.type} (${Math.round(snapshot.operator.confidence * 100)}% confidence)` },
-    { id: "02", label: "Canonical Edit", status: "generated", artifactPath: snapshot.stagePaths["02"], excerpt: `${snapshot.canonical.target}: ${from} -> ${to}` },
-    { id: "03", label: "Semantic IR", status: "resolved", artifactPath: snapshot.stagePaths["03"], excerpt: `axis ${snapshot.ir.axis}; ${snapshot.ir.invariantCount} invariants satisfied` },
-    { id: "04", label: "Token Resolution", status: "resolved", artifactPath: snapshot.stagePaths["04"], excerpt: `${fromToken.alias} (${fromToken.resolved.value}px) -> ${toToken.alias} (${toToken.resolved.value}px)` },
-    { id: "08", label: "Verification", status: "pass", artifactPath: `${snapshot.stagePaths["08-report"]} + ${snapshot.stagePaths["08-diff"]}`, excerpt: snapshot.verification.summaryChanged[0] ?? "presentational low risk" },
-    { id: "09", label: "Ledger", status: "recorded", artifactPath: snapshot.stagePaths["09"], excerpt: `${snapshot.ledgerEvents.length} canonical events loaded` },
-    { id: "10", label: "Rollback Plan", status: "ready", artifactPath: snapshot.stagePaths["10"], excerpt: snapshot.rollback.steps[0] ?? "rollback by edit reversal" }
+    {
+      id: "00",
+      label: "Human Input",
+      status: "captured",
+      artifactPath: snapshot.stagePaths["00"],
+      structuredFacts: facts([
+        { key: "prompt", value: snapshot.heroPromptFromArtifact }
+      ])
+    },
+    {
+      id: "01",
+      label: "Operator Translation",
+      status: snapshot.operator.policyAllowed ? "allowed" : "blocked",
+      artifactPath: snapshot.stagePaths["01"],
+      structuredFacts: facts([
+        { key: "type", value: snapshot.operator.type },
+        { key: "action", value: snapshot.operator.action },
+        { key: "axis", value: snapshot.operator.axis },
+        { key: "confidence", value: `${Math.round(snapshot.operator.confidence * 100)}%` },
+        { key: "allowed", value: String(snapshot.operator.policyAllowed) }
+      ]),
+      rawExcerpt: snapshot.operator.decisionReason
+    },
+    {
+      id: "02",
+      label: "Canonical Edit",
+      status: "generated",
+      artifactPath: snapshot.stagePaths["02"],
+      structuredFacts: facts([
+        { key: "edit_id", value: snapshot.canonical.editId },
+        { key: "target", value: snapshot.canonical.target },
+        { key: "from", value: from },
+        { key: "to", value: to },
+        {
+          key: "blast_radius",
+          value: `${snapshot.canonical.blastRadius.components.join(", ")} @ ${snapshot.canonical.blastRadius.screens.join(", ")}`
+        }
+      ])
+    },
+    {
+      id: "03",
+      label: "Semantic IR",
+      status: "resolved",
+      artifactPath: snapshot.stagePaths["03"],
+      structuredFacts: facts([
+        { key: "component", value: snapshot.ir.component },
+        { key: "axis", value: snapshot.ir.axis },
+        { key: "relation", value: snapshot.ir.relation },
+        { key: "invariants", value: String(snapshot.ir.invariantCount) }
+      ])
+    },
+    {
+      id: "04",
+      label: "Token Resolution",
+      status: "resolved",
+      artifactPath: snapshot.stagePaths["04"],
+      structuredFacts: facts([
+        { key: "before_alias", value: fromToken.alias },
+        { key: "before_px", value: `${fromToken.resolved.value}${fromToken.resolved.unit}` },
+        { key: "after_alias", value: toToken.alias },
+        { key: "after_px", value: `${toToken.resolved.value}${toToken.resolved.unit}` }
+      ])
+    },
+    {
+      id: "08",
+      label: "Verification",
+      status: "pass",
+      artifactPath: `${snapshot.stagePaths["08-report"]} + ${snapshot.stagePaths["08-diff"]}`,
+      structuredFacts: facts([
+        { key: "checks", value: snapshot.verification.checks.map((check) => `${check.id}:${check.status}`).join(" | ") },
+        { key: "changed", value: snapshot.verification.summaryChanged.join(" · ") },
+        { key: "unchanged", value: snapshot.verification.unchanged.join(" · ") }
+      ])
+    },
+    {
+      id: "09",
+      label: "Ledger",
+      status: "recorded",
+      artifactPath: snapshot.stagePaths["09"],
+      structuredFacts: facts([
+        { key: "events", value: String(snapshot.ledgerEvents.length) },
+        { key: "ordered_refs", value: snapshot.ledgerEvents.map((event) => `${event.event}→${event.ref ?? "n/a"}`).join(" | ") }
+      ])
+    },
+    {
+      id: "10",
+      label: "Rollback Plan",
+      status: "ready",
+      artifactPath: snapshot.stagePaths["10"],
+      structuredFacts: facts([
+        { key: "rollback_id", value: snapshot.rollback.id },
+        { key: "steps", value: String(snapshot.rollback.steps.length) },
+        { key: "success_condition", value: `${snapshot.rollback.successState} (${snapshot.rollback.successPx}px)` }
+      ]),
+      rawExcerpt: snapshot.rollback.steps[0]
+    }
   ];
 }
 
@@ -163,12 +329,13 @@ export function runGovernedPipeline(input, snapshot) {
     verification: { status: "pass", checks: snapshot.verification.checks, unchanged: snapshot.verification.unchanged },
     evidence: { diffSummary: snapshot.verification.summaryChanged, semanticDiffPath: snapshot.stagePaths["08-diff"], reportPath: snapshot.stagePaths["08-report"] },
     rollbackPlan: snapshot.rollback,
+    rollbackTrace: buildRollbackTrace(snapshot.ledgerEvents),
     stages,
     ledger: [...snapshot.ledgerEvents],
     productFraming: {
       changed: `${snapshot.canonical.target} ${from} -> ${to}`,
       unchanged: snapshot.verification.unchanged,
-      whyLowRisk: "Only a governed spacing axis changed inside a presentational_low_risk policy profile.",
+      whyAllowed: `Intent ${snapshot.operator.type} on axis ${snapshot.operator.axis} is authorized by presentational_low_risk policy.`,
       whySafer: "The canonical edit is auditable, verified, and reversible through ledgered events instead of direct class edits."
     }
   };
@@ -182,13 +349,15 @@ export function rollbackGovernedEdit(appliedResult, snapshot) {
   const from = appliedResult.canonicalEdit.to;
   const to = snapshot.rollback.successState;
   const rollbackEvents = buildRollbackEvents(appliedResult.ledger.at(-1)?.ts ?? new Date().toISOString());
+  const ledger = [...appliedResult.ledger, ...rollbackEvents];
 
   return {
     ...appliedResult,
     mode: "rolled_back",
     canonicalEdit: { ...appliedResult.canonicalEdit, from, to, semanticStepDelta: toDelta(from, to) },
     tokens: { before: snapshot.tokens.byState[from], after: snapshot.tokens.byState[to] },
-    ledger: [...appliedResult.ledger, ...rollbackEvents],
+    ledger,
+    rollbackTrace: buildRollbackTrace(ledger),
     rollbackVerification: { status: "pass", expectedPx: snapshot.rollback.successPx, actualPx: snapshot.tokens.byState[to].resolved.value }
   };
 }
