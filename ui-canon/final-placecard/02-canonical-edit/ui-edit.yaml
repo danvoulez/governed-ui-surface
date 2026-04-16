@@ -1,0 +1,24 @@
+version: 1
+edit_id: uiedit_2026_04_16_placecard_gap_001
+timestamp_utc: "2026-04-16T00:00:00Z"
+source:
+  operator_file: ui-canon/final-placecard/01-operator/operator-translation.yaml
+canonical_ui_edit:
+  target: place_card.header_body_gap
+  from: cozy
+  to: relaxed
+  semantic_step_delta: +1
+  reason: increase vertical rhythm between title area and body content
+  policy_class: low_risk_presentational
+  blast_radius:
+    components:
+      - PlaceCard
+    screens:
+      - place_details
+    expected_side_effects:
+      - "mais espaço vertical entre header/body"
+      - "nenhuma alteração em cor, copy, posição global"
+  forbidden_changes:
+    - dom_structure
+    - component_order
+    - text_content

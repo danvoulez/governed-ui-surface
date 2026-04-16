@@ -1,0 +1,19 @@
+{
+  "component": {
+    "placeCard": {
+      "headerBodyGap": {
+        "$type": "dimension",
+        "cozy": { "$value": "{space.4}" },
+        "relaxed": { "$value": "{space.6}" }
+      },
+      "padding": {
+        "$type": "dimension",
+        "$value": "{space.4}"
+      },
+      "radius": {
+        "$type": "dimension",
+        "$value": "{radius.xl}"
+      }
+    }
+  }
+}

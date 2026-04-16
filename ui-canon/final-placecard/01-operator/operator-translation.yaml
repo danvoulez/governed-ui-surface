@@ -1,0 +1,35 @@
+version: 1
+operator_translation:
+  input_ref: ui-canon/final-placecard/00-input/human-request.md
+  natural_language: "isso precisa ficar um pouco mais abaixo"
+  intent_classification:
+    type: vertical_rhythm_adjustment
+    confidence: 0.81
+    rationale:
+      - "expressão 'mais abaixo' mapeia para distância vertical"
+      - "alvo detectado no contexto: relação header -> body do PlaceCard"
+  target_resolution:
+    component: PlaceCard
+    target_path: header_to_body
+    axis: header_body_gap
+  normalization:
+    direction: increase_gap
+    magnitude: one_semantic_step
+    before_state: cozy
+    candidate_after_state: relaxed
+  policy_evaluation:
+    profile: presentational_low_risk
+    allowed: true
+    requires_human_confirmation: false
+    checks:
+      - check: intent_is_presentational
+        status: pass
+      - check: no_structure_change
+        status: pass
+      - check: confidence_threshold
+        threshold: 0.55
+        actual: 0.81
+        status: pass
+  decision:
+    action: auto_apply
+    reason: "edição semântica leve dentro da política"

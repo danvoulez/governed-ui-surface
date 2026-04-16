@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --spacing-place-card-padding: 1rem;
+  --spacing-place-card-header-body-cozy: 1rem;
+  --spacing-place-card-header-body-relaxed: 1.5rem;
+  --radius-place-card: 1.25rem;
+  --color-place-card-surface-default: #f8fafc;
+  --color-place-card-surface-elevated: #ffffff;
+  --color-place-card-border: #e2e8f0;
+}
+
+@custom-variant density-cozy (&:where([data-density="cozy"] *));
+@custom-variant density-relaxed (&:where([data-density="relaxed"] *));
+
+@utility place-card {
+  border-radius: var(--radius-place-card);
+  border: 1px solid var(--color-place-card-border);
+  padding: var(--spacing-place-card-padding);
+}
+
+@utility place-card-gap-cozy {
+  row-gap: var(--spacing-place-card-header-body-cozy);
+}
+
+@utility place-card-gap-relaxed {
+  row-gap: var(--spacing-place-card-header-body-relaxed);
+}

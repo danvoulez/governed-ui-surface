@@ -1,0 +1,6 @@
+version: 1
+screens:
+  place_details:
+    components:
+      - PlaceCard
+    policy_profile: presentational_low_risk

@@ -1,0 +1,8 @@
+version: 1
+layout_axes:
+  header_body_gap:
+    steps: [compact, cozy, relaxed]
+    maps_to: component.placeCard.headerBodyGap
+  stack_rhythm:
+    steps: [tight, normal, airy]
+    maps_to: space

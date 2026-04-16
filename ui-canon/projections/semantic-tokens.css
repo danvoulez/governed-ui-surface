@@ -1,0 +1,7 @@
+:root {
+  --place-card-header-body-gap: var(--spacing-place-card-header-body-cozy);
+}
+
+[data-density="relaxed"] {
+  --place-card-header-body-gap: var(--spacing-place-card-header-body-relaxed);
+}

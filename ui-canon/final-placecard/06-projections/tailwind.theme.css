@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* Generated from resolved semantic tokens */
+@theme {
+  --spacing-place-card-padding: 1rem;
+  --spacing-place-card-header-body-compact: 0.5rem;
+  --spacing-place-card-header-body-cozy: 1rem;
+  --spacing-place-card-header-body-relaxed: 1.5rem;
+
+  --radius-place-card: 1.25rem;
+
+  --color-place-card-surface-default: #f8fafc;
+  --color-place-card-surface-elevated: #ffffff;
+  --color-place-card-border: #e2e8f0;
+  --color-place-card-title: #0f172a;
+  --color-place-card-body: #475569;
+
+  --shadow-place-card: 0 4px 16px 0 rgba(15, 23, 42, 0.12);
+}
+
+@custom-variant density-compact (&:where([data-density="compact"] *));
+@custom-variant density-cozy (&:where([data-density="cozy"] *));
+@custom-variant density-relaxed (&:where([data-density="relaxed"] *));
+
+@custom-variant surface-default (&:where([data-surface="default"] *));
+@custom-variant surface-elevated (&:where([data-surface="elevated"] *));
+
+@utility place-card {
+  display: grid;
+  border-radius: var(--radius-place-card);
+  border: 1px solid var(--color-place-card-border);
+  padding: var(--spacing-place-card-padding);
+}
+
+@utility place-card-header {
+  color: var(--color-place-card-title);
+  font-weight: 600;
+}
+
+@utility place-card-body {
+  color: var(--color-place-card-body);
+}
+
+@utility place-card-gap-compact {
+  row-gap: var(--spacing-place-card-header-body-compact);
+}
+
+@utility place-card-gap-cozy {
+  row-gap: var(--spacing-place-card-header-body-cozy);
+}
+
+@utility place-card-gap-relaxed {
+  row-gap: var(--spacing-place-card-header-body-relaxed);
+}
+
+@utility place-card-surface-default {
+  background: var(--color-place-card-surface-default);
+}
+
+@utility place-card-surface-elevated {
+  background: var(--color-place-card-surface-elevated);
+  box-shadow: var(--shadow-place-card);
+}

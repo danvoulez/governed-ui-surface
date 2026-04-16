@@ -1,0 +1,29 @@
+version: 1
+report_id: verify_placecard_2026_04_16_001
+edit_ref: ui-canon/final-placecard/02-canonical-edit/ui-edit.yaml
+checks:
+  - id: semantic_diff
+    status: pass
+    detail: "header_body_gap mudou de cozy para relaxed"
+  - id: policy_guard
+    status: pass
+    detail: "intent vertical_rhythm_adjustment permitido por presentational_low_risk"
+  - id: token_resolution
+    status: pass
+    detail: "alias {space.6} resolvido para 24px"
+  - id: component_contract
+    status: pass
+    detail: "constraint density=relaxed -> header_body_gap=relaxed satisfeita"
+  - id: forbidden_mutations
+    status: pass
+    detail: "nenhuma alteração de dom_structure, component_order, text_content"
+visual_diff_summary:
+  expected:
+    - "aumento de espaço entre header e body"
+  unchanged:
+    - "tipografia"
+    - "texto"
+    - "layout global"
+rollback:
+  strategy: edit_reversal
+  pointer: ui-canon/final-placecard/10-rollback/rollback-plan.yaml

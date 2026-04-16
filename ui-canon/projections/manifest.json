@@ -1,0 +1,27 @@
+{
+  "generated": [
+    {
+      "file": "ui-canon/projections/tailwind.theme.css",
+      "from": [
+        "ui-canon/tokens/primitives.json",
+        "ui-canon/tokens/semantic.json",
+        "ui-canon/tokens/components.json",
+        "ui-canon/grammar/components.yaml"
+      ]
+    },
+    {
+      "file": "ui-canon/projections/component.variants.ts",
+      "from": [
+        "ui-canon/grammar/components.yaml",
+        "ui-canon/operator/placecard-gap-adjustment.yaml"
+      ]
+    },
+    {
+      "file": "ui-canon/projections/semantic-tokens.css",
+      "from": [
+        "ui-canon/tokens/semantic.json",
+        "ui-canon/grammar/layout.yaml"
+      ]
+    }
+  ]
+}
