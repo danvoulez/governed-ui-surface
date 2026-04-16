@@ -48,6 +48,8 @@ export type PipelineResult = {
     to: GapState;
     semanticStepDelta: number;
     policyClass: string;
+    forbiddenChanges: string[];
+    expectedSideEffects: string[];
   };
   tokens: {
     before: { alias: string; resolved: { value: number; unit: string } };
@@ -57,6 +59,7 @@ export type PipelineResult = {
     status: "pass" | "fail";
     checks: VerificationCheck[];
     unchanged: string[];
+    visualExpected: string[];
   };
   evidence: {
     diffSummary: string[];
@@ -65,9 +68,11 @@ export type PipelineResult = {
   };
   rollbackPlan: {
     id: string;
+    targetEditId: string;
     successState: GapState;
     successPx: number;
     steps: string[];
+    stepFiles: string[][];
   };
   rollbackTrace: RollbackTraceStep[];
   stages: StageView[];
@@ -82,5 +87,7 @@ export type PipelineResult = {
     status: "pass" | "fail";
     expectedPx: number;
     actualPx: number;
+    restoredState: GapState;
+    restoredAlias: string;
   };
 };
