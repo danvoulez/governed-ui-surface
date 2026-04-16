@@ -1,203 +1,108 @@
-# EXEMPLO GIGANTE (FINAL INTEIRO): UI Lens como compilador de semântica visual governada
+# UI Lens Demo: governed visual semantics, end-to-end
 
-Você pediu um exemplo **grande, completo e de ponta a ponta**. Este repositório agora contém um pacote final que mostra todo o ciclo:
+UI Lens is a **compiler for governed visual semantics**.
 
-**Linguagem natural -> Operador -> Edição canônica -> UI IR -> Resolução de tokens -> Projeções (Tailwind/CVA/React) -> Verificação -> Ledger -> Rollback.**
+You type a vague request like:
+
+> **“isso precisa ficar um pouco mais abaixo”**
+
+…and the system runs a governed pipeline:
+
+1. operator interpretation
+2. canonical semantic edit
+3. semantic IR
+4. token resolution
+5. projected UI artifacts
+6. verification
+7. ledger event
+8. rollback plan (and visible rollback)
+
+The key value is not “it changed CSS.”
+The key value is: **it changed UI in a controlled, explainable, reversible way**.
 
 ---
 
-## 1) Estrutura total
+## Run the interactive demo (hero flow)
 
-```text
-ui-canon/
-  tokens/
-    primitives.json
-    semantic.json
-    components.json
-    motion.json
-  grammar/
-    layout.yaml
-    components.yaml
-    screens.yaml
-    policies.yaml
-
-  final-placecard/
-    00-input/
-      human-request.md
-    01-operator/
-      operator-translation.yaml
-    02-canonical-edit/
-      ui-edit.yaml
-    03-ir/
-      ui-ir.yaml
-    04-token-resolution/
-      resolved-tokens.json
-    05-style-dictionary/
-      style-dictionary.config.cjs
-    06-projections/
-      tailwind.theme.css
-      component.variants.ts
-      place-card.example.tsx
-    07-component-contracts/
-      place-card.contract.yaml
-    08-verification/
-      report.yaml
-      semantic-diff.md
-    09-ledger/
-      events.jsonl
-    10-rollback/
-      rollback-plan.yaml
-    11-runbook/
-      pipeline.md
+```bash
+cd app
+npm install
+npm run dev
 ```
 
----
+Open the local URL from Vite (usually `http://localhost:5173`).
 
-## 2) O cenário humano (ponto de partida)
+### Magic moment to try first
 
-Frase original:
-
-> "isso precisa ficar um pouco mais abaixo"
-
-Essa frase **não** vira classe CSS diretamente. Ela vira intenção semântica governada.
-
----
-
-## 3) Tradução do Operador (NLP -> forma governada)
-
-No arquivo `01-operator/operator-translation.yaml` você encontra:
-
-- classificação da intenção (`vertical_rhythm_adjustment`)
-- alvo semântico (`PlaceCard.header_to_body`)
-- magnitude (`one_semantic_step`)
-- política aplicada (`presentational_low_risk`)
-- decisão de auto-apply (`true`, com confiança acima do threshold)
-
-Este é o ponto de quebra entre ambiguidade humana e forma computável.
+1. Keep the input as `isso precisa ficar um pouco mais abaixo`
+2. Click **Apply**
+3. See the PlaceCard move from `header_body_gap: cozy -> relaxed`
+4. Confirm token diff: `16px -> 24px`
+5. Inspect stages `00–10`, verification badge, evidence, and ledger
+6. Click **Rollback** and see it return to `cozy (16px)`
 
 ---
 
-## 4) Edição canônica (single source of truth da mudança)
+## Why this is better than editing JSX/classes directly
 
-No arquivo `02-canonical-edit/ui-edit.yaml`:
+Direct class edits are fast but weak on governance.
+This demo shows a safer path:
 
-- `target: place_card.header_body_gap`
-- `from: cozy`
-- `to: relaxed`
-- `semantic_step_delta: +1`
-- escopo/blast radius explícito
-- proibições explícitas (`dom_structure`, `component_order`, `text_content`)
-
-Sem essa edição canônica, não existe projeção.
+- NL input is interpreted by policy-aware operator logic
+- the **canonical edit** (`place_card.header_body_gap`) is the source of truth
+- projections are derived artifacts, not manual drift
+- verification and ledger are first-class
+- rollback is explicit and visible
 
 ---
 
-## 5) UI IR (modelo intermediário de governança)
+## Repo structure (governance-first)
 
-No `03-ir/ui-ir.yaml` você vê:
-
-- nós de contrato de componente
-- eixos semânticos e escalas
-- vínculos de política
-- invariantes verificáveis
-- resolução before/after em `px`
-
-Ou seja: você ganha um "AST semântico" para UI governada.
+- `app/` → runnable React + Vite demo UI
+- `scripts/run-pipeline.mjs` → tiny CLI pipeline runner
+- `ui-canon/final-placecard/` → single authoritative canonical pipeline example
+- `ui-canon/archive/` → legacy non-authoritative operator/projection artifacts
+- `ui-canon/grammar/`, `ui-canon/tokens/`, `ui-canon/evidence/` → governance substrate
 
 ---
 
-## 6) Tokens resolvidos e validação de alias
+## Semantic naming system
 
-No `04-token-resolution/resolved-tokens.json`:
+We intentionally keep layer-appropriate names and map them explicitly:
 
-- alias semântico (`{space.6}`)
-- valor resolvido (`24px`)
-- estado antes/depois
-- validação de circular reference (deve ser vazia)
+- canonical edit axis: `place_card.header_body_gap`
+- grammar/contract axis: `header_body_gap`
+- token/projection JS axis: `headerBodyGap`
+- DOM projection attr: `data-header-body-gap`
 
-Aqui o sistema prova que a edição é consistente com o cânon de tokens.
-
----
-
-## 7) Projeções mecânicas (Tailwind v4 + CVA + React)
-
-### Tailwind CSS-first
-`06-projections/tailwind.theme.css`:
-
-- `@theme` para tokens e variáveis
-- `@custom-variant` para `density` e `surface`
-- `@utility` para classes geradas governadas
-
-### CVA tipado
-`06-projections/component.variants.ts`:
-
-- `variants`
-- `compoundVariants`
-- `defaultVariants`
-- `VariantProps`
-- tipo de edição semântica (`PlaceCardSemanticEdit`)
-
-### Uso em componente React
-`06-projections/place-card.example.tsx`:
-
-- consumo dos variants
-- `data-density` e `data-surface`
-- demo da edição aplicada (`cozy -> relaxed`)
+See:
+- `ui-canon/grammar/components.yaml`
+- `ui-canon/final-placecard/07-component-contracts/place-card.contract.yaml`
 
 ---
 
-## 8) Contratos de componente
+## Tests
 
-No `07-component-contracts/place-card.contract.yaml`:
+```bash
+cd app
+npm test
+```
 
-- eixos aceitos por componente
-- defaults
-- constraints semânticas
-- mutações proibidas em renderização
+Coverage includes:
 
-Contrato explícito evita drift e improviso silencioso.
-
----
-
-## 9) Verificação formal + evidência
-
-Em `08-verification/`:
-
-- `report.yaml`: checks com status pass/fail e resumo de visual diff
-- `semantic-diff.md`: antes/depois humano-legível
-
-Isso gera um plano de prova da alteração, não só geração de arquivo.
+- canonical edit changes resolved spacing token (`16px -> 24px`)
+- projections reflect semantic change
+- rollback restores original semantic state
+- no unsupported semantic axis appears only downstream
 
 ---
 
-## 10) Ledger e rollback de verdade
+## One-command pipeline check (CLI)
 
-Em `09-ledger/events.jsonl`:
+From repo root:
 
-- trilha cronológica de eventos do pipeline
+```bash
+node scripts/run-pipeline.mjs "isso precisa ficar um pouco mais abaixo"
+```
 
-Em `10-rollback/rollback-plan.yaml`:
-
-- passos explícitos para desfazer
-- condição de sucesso pós-rollback (`cozy`, `16px`)
-
----
-
-## 11) Runbook operacional
-
-`11-runbook/pipeline.md` documenta execução e critérios de aceitação para repetir o processo em produção.
-
----
-
-## 12) Resumo executivo
-
-Este exemplo demonstra exatamente o que você descreveu:
-
-- a UI Lens **não é gerador de JSX final**
-- ela é **compilador de semântica visual governada**
-- linguagem natural é entrada humana
-- mudança canônica é o centro do sistema
-- projeções são artefatos derivados
-- verificação + ledger + rollback fecham o ciclo
-
-Se quiser, no próximo passo eu posso duplicar este pacote final para mais 3 componentes (`RunBlock`, `ApprovalCard`, `InspectorPane`) e mostrar um **multi-edit transaction** (várias mudanças semânticas no mesmo commit com dependências entre eixos).
+Prints a compact pipeline summary with canonical edit, token resolution, verification, and rollback target.

@@ -11,14 +11,14 @@ export function PlaceCard({
   body,
   density = "cozy",
   surface = "default",
-  decisionState = "idle"
+  headerBodyGap = "cozy"
 }: PlaceCardProps) {
   return (
     <article
-      className={placeCardVariants({ density, surface, decisionState })}
+      className={placeCardVariants({ density, surface, headerBodyGap })}
       data-density={density}
       data-surface={surface}
-      data-decision-state={decisionState}
+      data-header-body-gap={headerBodyGap}
     >
       <header className="place-card-header">{title}</header>
       <section className="place-card-body">{body}</section>
@@ -33,6 +33,7 @@ export function DemoSemanticEditApplied() {
       body="O espaço vertical foi aumentado em um passo semântico: cozy -> relaxed."
       density="relaxed"
       surface="elevated"
+      headerBodyGap="relaxed"
     />
   );
 }
