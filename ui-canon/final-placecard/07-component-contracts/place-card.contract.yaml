@@ -1,4 +1,4 @@
-version: 1
+version: 2
 component: PlaceCard
 accepts_axes:
   density:
@@ -10,18 +10,11 @@ accepts_axes:
   header_body_gap:
     values: [compact, cozy, relaxed]
     default: cozy
-  decision_state:
-    values: [idle, pending, blocked]
-    default: idle
 constraints:
   - if:
       density: relaxed
     then:
       header_body_gap: relaxed
-  - if:
-      decision_state: blocked
-    then:
-      interactions: disabled
 render_contract:
   required_slots:
     - header
@@ -29,3 +22,8 @@ render_contract:
   forbidden_mutations:
     - reorder_slots
     - remove_required_slot
+naming_map:
+  canonical_axis: place_card.header_body_gap
+  contract_axis: header_body_gap
+  token_axis: component.placeCard.headerBodyGap
+  projection_attr: data-header-body-gap

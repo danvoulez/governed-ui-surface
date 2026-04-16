@@ -1,4 +1,13 @@
-version: 1
+version: 2
+naming_system:
+  canonical: snake_case
+  tokens_and_js: camelCase
+  projection_attributes: kebab-case
+  mappings:
+    - canonical: place_card.header_body_gap
+      grammar_axis: header_body_gap
+      token_axis: component.placeCard.headerBodyGap
+      projection_attribute: data-header-body-gap
 components:
   PlaceCard:
     accepts_axes:
