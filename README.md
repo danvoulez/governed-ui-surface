@@ -1,12 +1,36 @@
 # UI Lens Demo: governed visual semantics, end-to-end
 
-UI Lens is a **compiler for governed visual semantics**.
+UI Lens is a compact operator product demo for **governed UI edits**.
 
 You type a vague request like:
 
 > **“isso precisa ficar um pouco mais abaixo”**
 
-…and the system performs a governed operation backed by canonical files in `ui-canon/final-placecard/`:
+…and UI Lens turns it into a governed, explainable, reversible semantic operation backed by canonical artifacts in `ui-canon/final-placecard/`.
+
+## The magic moment (under 1 minute)
+
+1. Run the app and keep the hero prompt:
+   - `isso precisa ficar um pouco mais abaixo`
+2. Click **Apply governed edit**.
+3. Watch only `place_card.header_body_gap` move from `cozy` to `relaxed` (`16px -> 24px`).
+4. In the operator console, open any stage in:
+   - **Facts** mode (grouped normalized facts)
+   - **Excerpt** mode (raw artifact excerpt tied to the same source)
+5. Confirm trust boundary chips and verification unchanged scope.
+6. Click **Execute rollback plan** and verify governed milestones:
+   - requested → applied → post-verification
+   - target edit id preserved
+   - semantic state and px restored (`cozy`, `16px`)
+
+## Why this is trustworthy
+
+- Authority lives in canonical artifacts, not ad hoc class edits.
+- The app and CLI share the same core normalization (`shared/pipeline-core.mjs`).
+- Verification and unchanged scope are first-class trust signals.
+- Rollback is governed and evidence-backed, not a blind undo.
+
+## Canonical chain (single authority)
 
 1. operator interpretation (`01-operator/operator-translation.yaml`)
 2. canonical semantic edit (`02-canonical-edit/ui-edit.yaml`)
@@ -14,14 +38,9 @@ You type a vague request like:
 4. token resolution (`04-token-resolution/resolved-tokens.json`)
 5. verification + semantic diff (`08-verification/*`)
 6. immutable ledger stream (`09-ledger/events.jsonl`)
-7. rollback plan and post-rollback ledger events (`10-rollback/rollback-plan.yaml`)
+7. rollback plan + post-rollback events (`10-rollback/rollback-plan.yaml`)
 
-The key value is not “it changed CSS.”
-The key value is: **it changed UI in a controlled, explainable, reversible way**.
-
----
-
-## Run the interactive demo (hero flow)
+## Run the interactive app
 
 ```bash
 cd app
@@ -29,63 +48,22 @@ npm install
 npm run dev
 ```
 
-Open the local URL from Vite (usually `http://localhost:5173`).
+Open the local Vite URL (usually `http://localhost:5173`).
 
-### Magic moment to try first
-
-1. Keep the input as `isso precisa ficar um pouco mais abaixo`
-2. Click **Apply governed edit**
-3. Watch PlaceCard `header_body_gap` move from `cozy` to `relaxed`
-4. Confirm token diff `16px -> 24px` and changed-property badge
-5. Inspect artifact-backed operator console stages with grouped facts (policy checks, rationale, forbidden changes, IR before/after px, verification unchanged scope, rollback target edit)
-6. Confirm trust boundary chips near preview: semantic-diff unchanged + verification unchanged + enforced surface/density invariants
-7. Click **Execute rollback plan** and observe the operation trail (`requested → applied → post-verification`) with target edit id and `16px` restored
-
----
-
-## Why this is better than editing JSX/classes directly
-
-Direct class edits are fast but weak on governance.
-This demo shows a safer path:
-
-- NL input is interpreted by policy-aware operator logic
-- the **canonical edit** (`place_card.header_body_gap`) remains the authority
-- app and CLI share the same compact pipeline core (`shared/pipeline-core.mjs`)
-- verification, evidence, and ledger are first-class, including explicit unchanged-scope trust signals
-- rollback is explicit, visible, and appended to the event stream
-
----
-
-## Repo structure (governance-first)
-
-- `app/` → runnable React + Vite operator surface
-- `scripts/run-pipeline.mjs` → CLI summary backed by shared core
-- `shared/pipeline-core.mjs` → shared pipeline model/parser for app + CLI
-- `ui-canon/final-placecard/` → single authoritative canonical artifact set
-- `ui-canon/archive/` → legacy non-authoritative material
-- `ui-canon/grammar/`, `ui-canon/tokens/`, `ui-canon/evidence/` → governance substrate
-
----
-
-## Tests
+## Run tests
 
 ```bash
 cd app
 npm test
 ```
 
-Coverage checks:
+Test coverage includes:
+- artifact-backed stage facts and excerpts from the same normalized source
+- trust boundary unchanged scope aligned with verification artifacts
+- rollback target edit id + restored semantic/px state
+- deterministic stage grouping and canonical artifact linkage
 
-- canonical artifact data drives semantic transition
-- resolved token aliases and px values match canonical edit
-- stage inspector exposes structured facts derived from canonical artifacts
-- verification surfaces unchanged scope from semantic diff
-- rollback trace shows requested → applied → post-verification
-- downstream axis mapping does not invent unsupported canonical axes
-
----
-
-## CLI pipeline summary
+## Run CLI (same governed story)
 
 From repo root:
 
@@ -94,4 +72,11 @@ node scripts/run-pipeline.mjs "isso precisa ficar um pouco mais abaixo"
 node scripts/run-pipeline.mjs "isso precisa ficar um pouco mais abaixo" rollback
 ```
 
-The second command executes governed rollback in the same shared model and shows rollback events in ledger output.
+Both commands use the same shared pipeline core as the app.
+
+## Repo shape
+
+- `app/` → React + Vite operator surface
+- `shared/pipeline-core.mjs` → shared parser/normalization and governed pipeline model
+- `scripts/run-pipeline.mjs` → CLI summary using the shared core
+- `ui-canon/final-placecard/` → authoritative canonical example
