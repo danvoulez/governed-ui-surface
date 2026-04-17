@@ -33,6 +33,15 @@ describe("governed artifact-backed pipeline", () => {
     expect(irStage?.structuredFacts.some((fact) => fact.key === "ir.after" && fact.value.includes("24px"))).toBe(true);
   });
 
+  it("facts mode and excerpt mode are grounded in same stage artifact", () => {
+    const result = runPipeline("isso precisa ficar um pouco mais abaixo");
+    const operatorStage = result.stages.find((stage) => stage.id === "01");
+
+    expect(operatorStage?.structuredFacts.some((fact) => fact.key === "intent.axis" && fact.value === "header_body_gap")).toBe(true);
+    expect(operatorStage?.rawSource).toContain("axis: header_body_gap");
+    expect(operatorStage?.rawExcerpt?.length).toBeGreaterThan(0);
+  });
+
   it("rollback trace shows target edit and restored state", () => {
     const proposed = runPipeline("isso precisa ficar um pouco mais abaixo");
     const applied = applyPipeline(proposed);
@@ -44,7 +53,7 @@ describe("governed artifact-backed pipeline", () => {
     expect(rolledBack.rollbackVerification?.actualPx).toBe(16);
   });
 
-  it("unchanged scope merges semantic diff and verification unchanged evidence", () => {
+  it("unchanged trust boundary remains aligned with verification artifacts", () => {
     const result = runPipeline("isso precisa ficar um pouco mais abaixo");
 
     expect(result.verification.unchanged).toEqual(expect.arrayContaining([
@@ -57,6 +66,18 @@ describe("governed artifact-backed pipeline", () => {
       "surface",
       "density"
     ]));
+
+    const verificationStage = result.stages.find((stage) => stage.id === "08");
+    expect(verificationStage?.kind).toBe("verification");
+    expect(verificationStage?.artifactPath).toContain("08-verification");
+  });
+
+  it("stage grouping stays deterministic and artifact-backed", () => {
+    const result = runPipeline("isso precisa ficar um pouco mais abaixo");
+
+    expect(result.stages.map((stage) => stage.id)).toEqual(["00", "01", "02", "03", "04", "08", "09", "10"]);
+    expect(result.stages.find((stage) => stage.id === "10")?.kind).toBe("rollback");
+    expect(result.stages.every((stage) => stage.artifactPath.includes("ui-canon/final-placecard"))).toBe(true);
   });
 
   it("cli-facing and app-facing snapshots share the same core truth", () => {

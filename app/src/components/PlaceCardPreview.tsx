@@ -21,17 +21,17 @@ export function PlaceCardPreview({ gap, title, body, badge, highlight = false, g
     <article className="place-card" data-gap={gap} data-highlight={highlight} data-governed={governed} data-mode={mode}>
       {badge ? <span className="badge">{badge}</span> : null}
       <header className="place-card-header">{title}</header>
-      <div className="spacing-annotation">Only this semantic axis changed: <code>header_body_gap</code></div>
+      <div className="spacing-annotation">Only this axis changed: <code>header_body_gap</code></div>
       <div className="gap-guide" aria-hidden="true">
         <span className="guide-line" />
         <span className="guide-value">{gapPx[gap]}px</span>
         <span className="guide-line" />
       </div>
-      <div className="gap-meter" aria-hidden="true">Token state: {gap} ({gapPx[gap]}px)</div>
+      <div className="gap-meter" aria-hidden="true">Semantic state: {gap} ({gapPx[gap]}px)</div>
       <section className="place-card-body" style={{ marginTop: gapPx[gap] }}>
         {body}
       </section>
-      <small className="token-note">Governed canonical axis value: header_body_gap = {gap}</small>
+      <small className="token-note">Unchanged scope remains governed: structure, copy, and interaction are locked.</small>
     </article>
   );
 }

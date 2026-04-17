@@ -5,12 +5,16 @@ export type StageFact = {
   value: string;
 };
 
+export type StageKind = "reference" | "verification" | "rollback";
+
 export type StageView = {
   id: string;
   label: string;
+  kind: StageKind;
   status: string;
   artifactPath: string;
   structuredFacts: StageFact[];
+  rawSource: string;
   rawExcerpt?: string;
 };
 

@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { PlaceCardPreview } from "./components/PlaceCardPreview";
 import { applyPipeline, getArtifactSnapshot, promptPresets, rollbackPipeline, runPipeline } from "./pipeline/runner";
-import type { PipelineResult, StageFact } from "./pipeline/types";
+import type { PipelineResult, StageFact, StageKind } from "./pipeline/types";
+
+type StageViewMode = "facts" | "excerpt";
 
 function groupFacts(facts: StageFact[]) {
   const buckets = new Map<string, StageFact[]>();
@@ -20,9 +22,23 @@ const rollbackLabel: Record<string, string> = {
   post_rollback_verification_completed: "post-rollback verification completed"
 };
 
+const operationLabel: Record<PipelineResult["mode"] | "initial", string> = {
+  initial: "Proposed only",
+  proposed: "Proposed only",
+  applied: "Applied + verified",
+  rolled_back: "Rolled back + verified"
+};
+
+const stageKindLabel: Record<StageKind, string> = {
+  reference: "Canonical reference",
+  verification: "Verification",
+  rollback: "Rollback"
+};
+
 export default function App() {
   const [input, setInput] = useState(promptPresets[0]);
   const [operation, setOperation] = useState<"initial" | "applied" | "rolled_back">("initial");
+  const [stageMode, setStageMode] = useState<Record<string, StageViewMode>>({});
 
   const proposed = useMemo(() => runPipeline(input), [input]);
   const applied = useMemo(() => applyPipeline(proposed), [proposed]);
@@ -38,7 +54,7 @@ export default function App() {
     <div className="layout">
       <aside>
         <h1>UI Lens operator surface</h1>
-        <p>Governed semantic edits over canonical artifacts — explainable, verified, reversible.</p>
+        <p className="hero-line">From vague feedback to a governed, explainable, reversible semantic edit.</p>
 
         <label>Human request</label>
         <input value={input} onChange={(e) => setInput(e.target.value)} />
@@ -55,17 +71,18 @@ export default function App() {
           <button onClick={() => setOperation("initial")}>Back to initial</button>
         </div>
 
-        <div className="panel">
-          <h3>Product framing</h3>
-          <p><strong>What changed</strong>: {active.productFraming.changed}</p>
-          <p><strong>Why allowed</strong>: {active.productFraming.whyAllowed}</p>
-          <p><strong>Stayed untouched</strong>: {active.productFraming.unchanged.join(", ")}</p>
-          <p><strong>Why governed is safer</strong>: {active.productFraming.whySafer}</p>
+        <div className="panel operator-story">
+          <h3>Operator story</h3>
+          <p><strong>Request</strong>: {active.input}</p>
+          <p><strong>Understood as</strong>: {active.interpretedIntent} on <code>{active.canonicalEdit.target}</code></p>
+          <p><strong>Allowed because</strong>: {active.productFraming.whyAllowed}</p>
+          <p><strong>Protected scope</strong>: {active.productFraming.unchanged.join(", ")}</p>
+          <p><strong>Operation state</strong>: <span className="status-inline">{operationLabel[operation]}</span></p>
+          <p className="artifact-note">Authority lives in canonical artifacts, not ad hoc UI mutation.</p>
         </div>
 
         <div className="panel">
-          <h3>Execution status</h3>
-          <p><strong>Operation</strong>: {operation}</p>
+          <h3>Guardrails</h3>
           <p><strong>Policy class</strong>: {active.canonicalEdit.policyClass}</p>
           <p><strong>Prompt recognized</strong>: {active.promptRecognized ? "yes" : "fallback to canonical mapping"}</p>
           <p><strong>Forbidden by policy</strong>: {active.canonicalEdit.forbiddenChanges.join(", ")}</p>
@@ -110,10 +127,13 @@ export default function App() {
         </div>
 
         <div className="panel rollback-trace">
-          <h3>Rollback operation trail</h3>
-          <p><strong>Plan</strong>: {active.rollbackPlan.id}</p>
-          <p><strong>Target edit</strong>: {active.rollbackPlan.targetEditId}</p>
-          <p><strong>Restored semantic state</strong>: {active.rollbackPlan.successState} ({active.rollbackPlan.successPx}px)</p>
+          <h3>Governed rollback operation log</h3>
+          <div className="rollback-meta">
+            <p><strong>Target edit id</strong>: <code>{active.rollbackPlan.targetEditId}</code></p>
+            <p><strong>Plan id</strong>: {active.rollbackPlan.id}</p>
+            <p><strong>Restored state</strong>: {active.rollbackPlan.successState}</p>
+            <p><strong>Restored px</strong>: {active.rollbackPlan.successPx}px</p>
+          </div>
           <ul>
             {active.rollbackTrace.map((step) => (
               <li key={step.event} data-status={step.status}>
@@ -133,29 +153,39 @@ export default function App() {
       <section>
         <h2>Operator console (artifact-backed)</h2>
         <ul className="stages">
-          {active.stages.map((stage) => (
-            <li key={stage.id}>
-              <div className="stage-topline">
-                <strong>{stage.id} {stage.label}</strong>
-                <span className="status-pill" data-status={stage.status}>{stage.status}</span>
-              </div>
-              <span>Artifact: <code>{stage.artifactPath}</code></span>
-              {groupFacts(stage.structuredFacts).map(([group, entries]) => (
-                <div className="fact-group" key={`${stage.id}-${group}`}>
-                  <h4>{group}</h4>
-                  <dl className="facts">
-                    {entries.map((fact) => (
-                      <div key={`${stage.id}-${fact.key}`}>
-                        <dt>{fact.key.split(".").slice(1).join(".") || fact.key}</dt>
-                        <dd>{fact.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
+          {active.stages.map((stage) => {
+            const mode = stageMode[stage.id] ?? "facts";
+            return (
+              <li key={stage.id} data-kind={stage.kind}>
+                <div className="stage-topline">
+                  <strong>{stage.id} {stage.label}</strong>
+                  <div className="stage-right">
+                    <span className="kind-pill">{stageKindLabel[stage.kind]}</span>
+                    <span className="status-pill" data-status={stage.status}>{stage.status}</span>
+                  </div>
                 </div>
-              ))}
-              {stage.rawExcerpt ? <p className="raw-excerpt">“{stage.rawExcerpt}”</p> : null}
-            </li>
-          ))}
+                <span>Artifact: <code>{stage.artifactPath}</code></span>
+                <div className="view-toggle" role="tablist" aria-label={`Inspect ${stage.label}`}>
+                  <button className={mode === "facts" ? "active" : ""} onClick={() => setStageMode((prev) => ({ ...prev, [stage.id]: "facts" }))}>Facts</button>
+                  <button className={mode === "excerpt" ? "active" : ""} onClick={() => setStageMode((prev) => ({ ...prev, [stage.id]: "excerpt" }))}>Excerpt</button>
+                </div>
+
+                {mode === "facts" ? groupFacts(stage.structuredFacts).map(([group, entries]) => (
+                  <div className="fact-group" key={`${stage.id}-${group}`}>
+                    <h4>{group}</h4>
+                    <dl className="facts">
+                      {entries.map((fact) => (
+                        <div key={`${stage.id}-${fact.key}`}>
+                          <dt>{fact.key.split(".").slice(1).join(".") || fact.key}</dt>
+                          <dd>{fact.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )) : <pre className="artifact-excerpt">{stage.rawExcerpt ?? stage.rawSource.slice(0, 220)}</pre>}
+              </li>
+            );
+          })}
         </ul>
 
         <div className="panel">

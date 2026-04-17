@@ -19,6 +19,12 @@ const STAGE_PATHS = {
 
 const GAP_ORDER = ["compact", "cozy", "relaxed"];
 
+const stripQuotes = (value = "") => value.replace(/^"|"$/g, "").trim();
+const safeNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? fallback : parsed;
+};
+
 function extractQuoted(text, fallback = "") {
   const match = text.match(/"([^"]+)"/);
   return match ? match[1] : fallback;
@@ -27,28 +33,27 @@ function extractQuoted(text, fallback = "") {
 function extractYamlValue(text, key) {
   const regex = new RegExp(`^\\s*${key}:\\s*([^\\n]+)$`, "m");
   const match = text.match(regex);
-  return match ? match[1].replace(/^"|"$/g, "").trim() : "";
+  return match ? stripQuotes(match[1]) : "";
 }
 
-function extractYamlMapValue(text, path) {
-  const [head, child] = path;
-  const block = text.match(new RegExp(`^\\s*${head}:\\s*$([\\s\\S]*?)(?:^\\S|$)`, "m"));
-  if (!block) return "";
-  const match = block[1].match(new RegExp(`^\\s*${child}:\\s*([^\\n]+)$`, "m"));
-  return match ? match[1].replace(/^"|"$/g, "").trim() : "";
+function extractSectionLines(text, headerRegex) {
+  const match = text.match(headerRegex);
+  if (!match || typeof match.index !== "number") return [];
+  return text
+    .slice(match.index + match[0].length)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function extractListAfterHeader(text, headerRegex) {
-  const header = text.match(headerRegex);
-  if (!header || typeof header.index !== "number") return [];
-  const after = text.slice(header.index + header[0].length);
-  const lines = [];
-  for (const raw of after.split("\n")) {
-    const line = raw.trim();
+  const lines = extractSectionLines(text, headerRegex);
+  const list = [];
+  for (const line of lines) {
     if (line.startsWith("## ")) break;
-    if (line.startsWith("- ")) lines.push(line.slice(2).replace(/^"|"$/g, "").replace(/`/g, ""));
+    if (line.startsWith("- ")) list.push(stripQuotes(line.slice(2).replace(/`/g, "")));
   }
-  return lines;
+  return list;
 }
 
 function parseJsonLines(jsonl) {
@@ -57,6 +62,31 @@ function parseJsonLines(jsonl) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line));
+}
+
+function parseYamlListBlock(text, key) {
+  const lines = text.split("\n");
+  const collected = [];
+  let collecting = false;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line === `${key}:`) {
+      collecting = true;
+      continue;
+    }
+
+    if (!collecting) continue;
+
+    if (line.startsWith("- ")) {
+      collected.push(stripQuotes(line.slice(2)));
+      continue;
+    }
+
+    if (line !== "") break;
+  }
+
+  return collected;
 }
 
 function parseVerificationChecks(report) {
@@ -73,7 +103,7 @@ function parseVerificationChecks(report) {
     }
     if (!current) continue;
     if (trimmed.startsWith("status:")) current.status = trimmed.replace(/^status:\s*/, "");
-    if (trimmed.startsWith("detail:")) current.detail = trimmed.replace(/^detail:\s*/, "").replace(/^"|"$/g, "");
+    if (trimmed.startsWith("detail:")) current.detail = stripQuotes(trimmed.replace(/^detail:\s*/, ""));
   }
 
   if (current) checks.push(current);
@@ -81,31 +111,18 @@ function parseVerificationChecks(report) {
 }
 
 function parseOperatorDetails(operatorYaml) {
-  const rationale = [];
+  const rationale = parseYamlListBlock(operatorYaml, "rationale");
   const checks = [];
-  let inRationale = false;
-  let inChecks = false;
   let currentCheck = null;
+  let inChecks = false;
 
   for (const raw of operatorYaml.split("\n")) {
     const line = raw.trim();
 
-    if (line === "rationale:") {
-      inRationale = true;
-      inChecks = false;
-      continue;
-    }
     if (line === "checks:") {
-      inRationale = false;
       inChecks = true;
       continue;
     }
-
-    if (inRationale && line.startsWith("- ")) {
-      rationale.push(line.slice(2).replace(/^"|"$/g, ""));
-      continue;
-    }
-    if (inRationale && !line.startsWith("- ")) inRationale = false;
 
     if (!inChecks) continue;
 
@@ -120,8 +137,8 @@ function parseOperatorDetails(operatorYaml) {
     if (line.startsWith("threshold:")) currentCheck.threshold = line.replace(/^threshold:\s*/, "");
     if (line.startsWith("actual:")) currentCheck.actual = line.replace(/^actual:\s*/, "");
 
-    if (line === "" || (/^[a-z_]+:/.test(line) && !line.startsWith("status:") && !line.startsWith("threshold:") && !line.startsWith("actual:"))) {
-      if (currentCheck) checks.push(currentCheck);
+    if (line === "") {
+      checks.push(currentCheck);
       currentCheck = null;
     }
   }
@@ -131,62 +148,26 @@ function parseOperatorDetails(operatorYaml) {
 }
 
 function parseCanonicalEditDetails(editYaml) {
-  const components = [];
-  const screens = [];
-  const expectedSideEffects = [];
-  const forbiddenChanges = [];
-  let mode = "";
-
-  for (const raw of editYaml.split("\n")) {
-    const line = raw.trim();
-    if (line === "components:") mode = "components";
-    else if (line === "screens:") mode = "screens";
-    else if (line === "expected_side_effects:") mode = "effects";
-    else if (line === "forbidden_changes:") mode = "forbidden";
-    else if (!line.startsWith("- ")) mode = "";
-
-    if (!line.startsWith("- ")) continue;
-    const value = line.slice(2).replace(/^"|"$/g, "");
-    if (mode === "components") components.push(value);
-    if (mode === "screens") screens.push(value);
-    if (mode === "effects") expectedSideEffects.push(value);
-    if (mode === "forbidden") forbiddenChanges.push(value);
-  }
-
-  return { components, screens, expectedSideEffects, forbiddenChanges };
+  return {
+    components: parseYamlListBlock(editYaml, "components"),
+    screens: parseYamlListBlock(editYaml, "screens"),
+    expectedSideEffects: parseYamlListBlock(editYaml, "expected_side_effects"),
+    forbiddenChanges: parseYamlListBlock(editYaml, "forbidden_changes")
+  };
 }
 
 function parseIrResolution(irYaml) {
+  const [, afterSection = ""] = irYaml.split("after:");
   return {
     relation: extractYamlValue(irYaml, "relation"),
     invariantCount: (irYaml.match(/- id:\s*inv_/g) ?? []).length,
     beforeState: extractYamlValue(irYaml, "place_card.header_body_gap"),
     beforeAlias: extractYamlValue(irYaml, "resolved_dimension"),
-    beforePx: Number(extractYamlValue(irYaml, "resolved_px")),
-    afterState: extractYamlValue(irYaml.split("after:")[1] ?? "", "place_card.header_body_gap"),
-    afterAlias: extractYamlValue(irYaml.split("after:")[1] ?? "", "resolved_dimension"),
-    afterPx: Number(extractYamlValue(irYaml.split("after:")[1] ?? "", "resolved_px"))
+    beforePx: safeNumber(extractYamlValue(irYaml, "resolved_px")),
+    afterState: extractYamlValue(afterSection, "place_card.header_body_gap"),
+    afterAlias: extractYamlValue(afterSection, "resolved_dimension"),
+    afterPx: safeNumber(extractYamlValue(afterSection, "resolved_px"))
   };
-}
-
-function parseReportVisuals(reportYaml) {
-  const expected = [];
-  const unchanged = [];
-  let mode = "";
-
-  for (const raw of reportYaml.split("\n")) {
-    const line = raw.trim();
-    if (line === "expected:") mode = "expected";
-    else if (line === "unchanged:") mode = "unchanged";
-    else if (!line.startsWith("- ")) mode = "";
-
-    if (!line.startsWith("- ")) continue;
-    const value = line.slice(2).replace(/^"|"$/g, "");
-    if (mode === "expected") expected.push(value);
-    if (mode === "unchanged") unchanged.push(value);
-  }
-
-  return { expected, unchanged };
 }
 
 function parseRollbackPlan(plan) {
@@ -197,7 +178,7 @@ function parseRollbackPlan(plan) {
   for (const raw of plan.split("\n")) {
     const line = raw.trim();
     if (line.startsWith("- step:")) {
-      steps.push(line.replace(/^- step:\s*/, "").replace(/^"|"$/g, ""));
+      steps.push(stripQuotes(line.replace(/^- step:\s*/, "")));
       stepFiles.push([]);
       stepIndex += 1;
       continue;
@@ -211,7 +192,7 @@ function parseRollbackPlan(plan) {
     id: extractYamlValue(plan, "rollback_id"),
     targetEditId: extractYamlValue(plan, "target_edit_id"),
     successState: extractYamlValue(plan, "header_body_gap"),
-    successPx: Number(extractYamlValue(plan, "resolved_px")),
+    successPx: safeNumber(extractYamlValue(plan, "resolved_px")),
     steps,
     stepFiles
   };
@@ -238,6 +219,107 @@ function summarizeLedger(ledgerEvents) {
   };
 }
 
+function makeExcerpt(source, max = 220) {
+  const clean = source.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1)}…`;
+}
+
+function facts(entries) {
+  return entries.filter((entry) => entry.value !== "" && entry.value !== undefined);
+}
+
+function buildStage(id, label, kind, status, artifactPath, structuredFacts, rawSource, rawExcerpt) {
+  return {
+    id,
+    label,
+    kind,
+    status,
+    artifactPath,
+    structuredFacts: facts(structuredFacts),
+    rawSource,
+    rawExcerpt: rawExcerpt || makeExcerpt(rawSource)
+  };
+}
+
+function buildStages(snapshot, from, to) {
+  const fromToken = snapshot.tokens.byState[from];
+  const toToken = snapshot.tokens.byState[to];
+
+  return [
+    buildStage("00", "Human Input", "reference", "captured", snapshot.stagePaths["00"], [
+      { key: "request.prompt", value: snapshot.heroPromptFromArtifact },
+      { key: "request.mapping", value: `${from} -> ${to}` }
+    ], snapshot.artifactSources.humanRequest),
+
+    buildStage("01", "Operator Translation", "reference", snapshot.operator.policyAllowed ? "allowed" : "blocked", snapshot.stagePaths["01"], [
+      { key: "intent.type", value: snapshot.operator.type },
+      { key: "intent.action", value: snapshot.operator.action },
+      { key: "intent.axis", value: snapshot.operator.axis },
+      { key: "policy.profile", value: snapshot.operator.policyProfile },
+      { key: "policy.allowed", value: String(snapshot.operator.policyAllowed) },
+      { key: "policy.checks", value: snapshot.operator.policyChecks.map((check) => `${check.check}:${check.status}`).join(" | ") },
+      { key: "operator.rationale", value: snapshot.operator.rationale.join(" · ") },
+      { key: "operator.confidence", value: `${Math.round(snapshot.operator.confidence * 100)}%` }
+    ], snapshot.artifactSources.operator, snapshot.operator.decisionReason),
+
+    buildStage("02", "Canonical Edit", "reference", "generated", snapshot.stagePaths["02"], [
+      { key: "edit.id", value: snapshot.canonical.editId },
+      { key: "edit.target", value: snapshot.canonical.target },
+      { key: "edit.reason", value: snapshot.canonical.reason },
+      { key: "edit.state", value: `${from} -> ${to}` },
+      { key: "policy.class", value: snapshot.canonical.policyClass },
+      { key: "blast.components", value: snapshot.canonical.blastRadius.components.join(", ") },
+      { key: "blast.screens", value: snapshot.canonical.blastRadius.screens.join(", ") },
+      { key: "blast.expected", value: snapshot.canonical.blastRadius.expectedSideEffects.join(" · ") },
+      { key: "forbidden.changes", value: snapshot.canonical.blastRadius.forbiddenChanges.join(", ") }
+    ], snapshot.artifactSources.uiEdit),
+
+    buildStage("03", "Semantic IR", "reference", "resolved", snapshot.stagePaths["03"], [
+      { key: "ir.component", value: snapshot.ir.component },
+      { key: "ir.axis", value: snapshot.ir.axis },
+      { key: "ir.relation", value: snapshot.ir.relation },
+      { key: "ir.before", value: `${snapshot.ir.beforeState} / ${snapshot.ir.beforeAlias} / ${snapshot.ir.beforePx}px` },
+      { key: "ir.after", value: `${snapshot.ir.afterState} / ${snapshot.ir.afterAlias} / ${snapshot.ir.afterPx}px` },
+      { key: "ir.invariants", value: String(snapshot.ir.invariantCount) }
+    ], snapshot.artifactSources.ir),
+
+    buildStage("04", "Token Resolution", "reference", "resolved", snapshot.stagePaths["04"], [
+      { key: "token.before", value: `${fromToken.alias} => ${fromToken.resolved.value}${fromToken.resolved.unit}` },
+      { key: "token.after", value: `${toToken.alias} => ${toToken.resolved.value}${toToken.resolved.unit}` },
+      { key: "token.active_before", value: snapshot.tokens.beforeActive },
+      { key: "token.active_after", value: snapshot.tokens.afterActive }
+    ], snapshot.artifactSources.resolvedTokens),
+
+    buildStage("08", "Verification", "verification", snapshot.verification.checks.every((check) => check.status === "pass") ? "pass" : "fail", `${snapshot.stagePaths["08-report"]} + ${snapshot.stagePaths["08-diff"]}`, [
+      { key: "verify.checks", value: snapshot.verification.checks.map((check) => `${check.id}:${check.status}`).join(" | ") },
+      { key: "verify.changed", value: snapshot.verification.summaryChanged.join(" · ") },
+      { key: "verify.unchanged", value: snapshot.verification.unchanged.join(" · ") },
+      { key: "visual.expected", value: snapshot.verification.visualExpected.join(" · ") },
+      { key: "visual.unchanged", value: snapshot.verification.visualUnchanged.join(" · ") }
+    ], `${snapshot.artifactSources.report}\n\n${snapshot.artifactSources.semanticDiff}`, `checks:${snapshot.verification.checks.length} | unchanged:${snapshot.verification.unchanged.join(", ")}`),
+
+    buildStage("09", "Ledger", "verification", "recorded", snapshot.stagePaths["09"], [
+      { key: "ledger.total_events", value: String(snapshot.ledgerSummary.totalEvents) },
+      { key: "ledger.unique_refs", value: String(snapshot.ledgerSummary.uniqueRefs) },
+      {
+        key: "ledger.by_stage",
+        value: Object.entries(snapshot.ledgerSummary.byStage)
+          .map(([stage, count]) => `${stage}:${count}`)
+          .join(" | ")
+      }
+    ], snapshot.artifactSources.ledger),
+
+    buildStage("10", "Rollback Plan", "rollback", "ready", snapshot.stagePaths["10"], [
+      { key: "rollback.id", value: snapshot.rollback.id },
+      { key: "rollback.target_edit", value: snapshot.rollback.targetEditId },
+      { key: "rollback.steps", value: String(snapshot.rollback.steps.length) },
+      { key: "rollback.restore", value: `${snapshot.rollback.successState} (${snapshot.rollback.successPx}px)` },
+      { key: "rollback.files", value: snapshot.rollback.stepFiles.flat().join(" | ") }
+    ], snapshot.artifactSources.rollbackPlan, snapshot.rollback.steps[0])
+  ];
+}
+
 export function parseCanonicalArtifacts(artifacts) {
   const resolvedTokens = JSON.parse(artifacts.resolvedTokens);
   const ledgerEvents = parseJsonLines(artifacts.ledger);
@@ -247,14 +329,11 @@ export function parseCanonicalArtifacts(artifacts) {
   const verificationChecks = parseVerificationChecks(artifacts.report);
   const semanticUnchanged = extractListAfterHeader(artifacts.semanticDiff, /^## What did NOT change\s*$/m);
   const summaryChanged = extractListAfterHeader(artifacts.semanticDiff, /^## What changed\s*$/m);
-  const reportVisuals = parseReportVisuals(artifacts.report);
   const rollback = parseRollbackPlan(artifacts.rollbackPlan);
 
-  const before = extractYamlValue(artifacts.uiEdit, "from");
-  const canonicalAfter = extractYamlValue(artifacts.uiEdit, "to");
   const target = extractYamlValue(artifacts.uiEdit, "target");
   const operatorAxis = extractYamlValue(artifacts.operator, "axis");
-  const operatorConfidence = Number(extractYamlValue(artifacts.operator, "confidence"));
+  const operatorConfidence = safeNumber(extractYamlValue(artifacts.operator, "confidence"));
   const policyAllowed = extractYamlValue(artifacts.operator, "allowed") === "true";
   const stateMap = resolvedTokens.semantic.component.placeCard.headerBodyGap;
 
@@ -262,8 +341,8 @@ export function parseCanonicalArtifacts(artifacts) {
     heroPromptFromArtifact: extractQuoted(artifacts.humanRequest, "isso precisa ficar um pouco mais abaixo"),
     canonical: {
       target,
-      before,
-      after: canonicalAfter,
+      before: extractYamlValue(artifacts.uiEdit, "from"),
+      after: extractYamlValue(artifacts.uiEdit, "to"),
       editId: extractYamlValue(artifacts.uiEdit, "edit_id"),
       policyClass: extractYamlValue(artifacts.uiEdit, "policy_class"),
       reason: extractYamlValue(artifacts.uiEdit, "reason"),
@@ -273,7 +352,7 @@ export function parseCanonicalArtifacts(artifacts) {
       type: extractYamlValue(artifacts.operator, "type"),
       action: extractYamlValue(artifacts.operator, "action"),
       axis: operatorAxis,
-      confidence: Number.isNaN(operatorConfidence) ? 0 : operatorConfidence,
+      confidence: operatorConfidence,
       policyProfile: extractYamlValue(artifacts.operator, "profile"),
       policyAllowed,
       decisionReason: extractYamlValue(artifacts.operator, "reason"),
@@ -298,14 +377,15 @@ export function parseCanonicalArtifacts(artifacts) {
       checks: verificationChecks,
       unchanged: semanticUnchanged,
       summaryChanged,
-      visualExpected: reportVisuals.expected,
-      visualUnchanged: reportVisuals.unchanged
+      visualExpected: parseYamlListBlock(artifacts.report, "expected"),
+      visualUnchanged: parseYamlListBlock(artifacts.report, "unchanged")
     },
     rollback,
     ledgerEvents,
     ledgerSummary: summarizeLedger(ledgerEvents),
     rollbackTrace: buildRollbackTrace(ledgerEvents),
-    stagePaths: STAGE_PATHS
+    stagePaths: STAGE_PATHS,
+    artifactSources: artifacts
   };
 }
 
@@ -316,131 +396,6 @@ function mapInputToAfterState(input, fallbackAfter) {
 
 function toDelta(from, to) {
   return GAP_ORDER.indexOf(to) - GAP_ORDER.indexOf(from);
-}
-
-function facts(entries) {
-  return entries.filter((entry) => entry.value !== "" && entry.value !== undefined);
-}
-
-function buildStages(snapshot, from, to) {
-  const fromToken = snapshot.tokens.byState[from];
-  const toToken = snapshot.tokens.byState[to];
-
-  return [
-    {
-      id: "00",
-      label: "Human Input",
-      status: "captured",
-      artifactPath: snapshot.stagePaths["00"],
-      structuredFacts: facts([
-        { key: "request.prompt", value: snapshot.heroPromptFromArtifact },
-        { key: "request.mapping", value: `${from} -> ${to}` }
-      ])
-    },
-    {
-      id: "01",
-      label: "Operator Translation",
-      status: snapshot.operator.policyAllowed ? "allowed" : "blocked",
-      artifactPath: snapshot.stagePaths["01"],
-      structuredFacts: facts([
-        { key: "intent.type", value: snapshot.operator.type },
-        { key: "intent.action", value: snapshot.operator.action },
-        { key: "intent.axis", value: snapshot.operator.axis },
-        { key: "policy.profile", value: snapshot.operator.policyProfile },
-        { key: "policy.allowed", value: String(snapshot.operator.policyAllowed) },
-        { key: "policy.checks", value: snapshot.operator.policyChecks.map((check) => `${check.check}:${check.status}`).join(" | ") },
-        { key: "operator.rationale", value: snapshot.operator.rationale.join(" · ") },
-        { key: "operator.confidence", value: `${Math.round(snapshot.operator.confidence * 100)}%` }
-      ]),
-      rawExcerpt: snapshot.operator.decisionReason
-    },
-    {
-      id: "02",
-      label: "Canonical Edit",
-      status: "generated",
-      artifactPath: snapshot.stagePaths["02"],
-      structuredFacts: facts([
-        { key: "edit.id", value: snapshot.canonical.editId },
-        { key: "edit.target", value: snapshot.canonical.target },
-        { key: "edit.reason", value: snapshot.canonical.reason },
-        { key: "edit.state", value: `${from} -> ${to}` },
-        { key: "policy.class", value: snapshot.canonical.policyClass },
-        { key: "blast.components", value: snapshot.canonical.blastRadius.components.join(", ") },
-        { key: "blast.screens", value: snapshot.canonical.blastRadius.screens.join(", ") },
-        { key: "blast.expected", value: snapshot.canonical.blastRadius.expectedSideEffects.join(" · ") },
-        { key: "forbidden.changes", value: snapshot.canonical.blastRadius.forbiddenChanges.join(", ") }
-      ])
-    },
-    {
-      id: "03",
-      label: "Semantic IR",
-      status: "resolved",
-      artifactPath: snapshot.stagePaths["03"],
-      structuredFacts: facts([
-        { key: "ir.component", value: snapshot.ir.component },
-        { key: "ir.axis", value: snapshot.ir.axis },
-        { key: "ir.relation", value: snapshot.ir.relation },
-        { key: "ir.before", value: `${snapshot.ir.beforeState} / ${snapshot.ir.beforeAlias} / ${snapshot.ir.beforePx}px` },
-        { key: "ir.after", value: `${snapshot.ir.afterState} / ${snapshot.ir.afterAlias} / ${snapshot.ir.afterPx}px` },
-        { key: "ir.invariants", value: String(snapshot.ir.invariantCount) }
-      ])
-    },
-    {
-      id: "04",
-      label: "Token Resolution",
-      status: "resolved",
-      artifactPath: snapshot.stagePaths["04"],
-      structuredFacts: facts([
-        { key: "token.before", value: `${fromToken.alias} => ${fromToken.resolved.value}${fromToken.resolved.unit}` },
-        { key: "token.after", value: `${toToken.alias} => ${toToken.resolved.value}${toToken.resolved.unit}` },
-        { key: "token.active_before", value: snapshot.tokens.beforeActive },
-        { key: "token.active_after", value: snapshot.tokens.afterActive }
-      ])
-    },
-    {
-      id: "08",
-      label: "Verification",
-      status: snapshot.verification.checks.every((check) => check.status === "pass") ? "pass" : "fail",
-      artifactPath: `${snapshot.stagePaths["08-report"]} + ${snapshot.stagePaths["08-diff"]}`,
-      structuredFacts: facts([
-        { key: "verify.checks", value: snapshot.verification.checks.map((check) => `${check.id}:${check.status}`).join(" | ") },
-        { key: "verify.changed", value: snapshot.verification.summaryChanged.join(" · ") },
-        { key: "verify.unchanged", value: snapshot.verification.unchanged.join(" · ") },
-        { key: "visual.expected", value: snapshot.verification.visualExpected.join(" · ") },
-        { key: "visual.unchanged", value: snapshot.verification.visualUnchanged.join(" · ") }
-      ])
-    },
-    {
-      id: "09",
-      label: "Ledger",
-      status: "recorded",
-      artifactPath: snapshot.stagePaths["09"],
-      structuredFacts: facts([
-        { key: "ledger.total_events", value: String(snapshot.ledgerSummary.totalEvents) },
-        { key: "ledger.unique_refs", value: String(snapshot.ledgerSummary.uniqueRefs) },
-        {
-          key: "ledger.by_stage",
-          value: Object.entries(snapshot.ledgerSummary.byStage)
-            .map(([stage, count]) => `${stage}:${count}`)
-            .join(" | ")
-        }
-      ])
-    },
-    {
-      id: "10",
-      label: "Rollback Plan",
-      status: "ready",
-      artifactPath: snapshot.stagePaths["10"],
-      structuredFacts: facts([
-        { key: "rollback.id", value: snapshot.rollback.id },
-        { key: "rollback.target_edit", value: snapshot.rollback.targetEditId },
-        { key: "rollback.steps", value: String(snapshot.rollback.steps.length) },
-        { key: "rollback.restore", value: `${snapshot.rollback.successState} (${snapshot.rollback.successPx}px)` },
-        { key: "rollback.files", value: snapshot.rollback.stepFiles.flat().join(" | ") }
-      ]),
-      rawExcerpt: snapshot.rollback.steps[0]
-    }
-  ];
 }
 
 function buildRollbackEvents(lastTs, toState) {
