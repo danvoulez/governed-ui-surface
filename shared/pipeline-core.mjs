@@ -31,19 +31,32 @@ function extractQuoted(text, fallback = "") {
 }
 
 function extractYamlValue(text, key) {
-  const regex = new RegExp(`^\\s*${key}:\\s*([^\\n]+)$`, "m");
-  const match = text.match(regex);
-  return match ? stripQuotes(match[1]) : "";
+  return findYamlScalar(text, key)?.value ?? "";
+}
+
+const splitLines = (text) => text.replace(/\r\n/g, "\n").split("\n");
+
+function findYamlScalar(text, key) {
+  const lines = splitLines(text);
+  const matcher = new RegExp(`^\\s*${key}:\\s*(.+?)\\s*$`);
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(matcher);
+    if (match) return { value: stripQuotes(match[1]), line: index + 1 };
+  }
+  return null;
 }
 
 function extractSectionLines(text, headerRegex) {
-  const match = text.match(headerRegex);
-  if (!match || typeof match.index !== "number") return [];
-  return text
-    .slice(match.index + match[0].length)
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const lines = splitLines(text);
+  const start = lines.findIndex((line) => headerRegex.test(line));
+  if (start < 0) return [];
+  const collected = [];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const trimmed = lines[index].trim();
+    if (trimmed.startsWith("## ")) break;
+    if (trimmed) collected.push(trimmed);
+  }
+  return collected;
 }
 
 function extractListAfterHeader(text, headerRegex) {
@@ -65,7 +78,7 @@ function parseJsonLines(jsonl) {
 }
 
 function parseYamlListBlock(text, key) {
-  const lines = text.split("\n");
+  const lines = splitLines(text);
   const collected = [];
   let collecting = false;
 
@@ -90,7 +103,7 @@ function parseYamlListBlock(text, key) {
 }
 
 function parseVerificationChecks(report) {
-  const lines = report.split("\n");
+  const lines = splitLines(report);
   const checks = [];
   let current = null;
 
@@ -116,7 +129,7 @@ function parseOperatorDetails(operatorYaml) {
   let currentCheck = null;
   let inChecks = false;
 
-  for (const raw of operatorYaml.split("\n")) {
+  for (const raw of splitLines(operatorYaml)) {
     const line = raw.trim();
 
     if (line === "checks:") {
@@ -175,7 +188,7 @@ function parseRollbackPlan(plan) {
   const stepFiles = [];
   let stepIndex = -1;
 
-  for (const raw of plan.split("\n")) {
+  for (const raw of splitLines(plan)) {
     const line = raw.trim();
     if (line.startsWith("- step:")) {
       steps.push(stripQuotes(line.replace(/^- step:\s*/, "")));
@@ -219,17 +232,47 @@ function summarizeLedger(ledgerEvents) {
   };
 }
 
-function makeExcerpt(source, max = 220) {
-  const clean = source.replace(/\s+/g, " ").trim();
-  if (clean.length <= max) return clean;
-  return `${clean.slice(0, max - 1)}…`;
+function lineNumberLine(lineNo, text) {
+  return `${String(lineNo).padStart(3, " ")}│ ${text}`;
+}
+
+function findFocusLineIndexes(lines, focusTerms = []) {
+  const loweredTerms = focusTerms.map((term) => term.toLowerCase()).filter(Boolean);
+  if (!loweredTerms.length) return [];
+  const indexes = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const normalized = lines[index].toLowerCase();
+    if (loweredTerms.some((term) => normalized.includes(term))) indexes.push(index);
+  }
+  return indexes;
+}
+
+function makeExcerpt(source, { focusTerms = [], maxLines = 12, radius = 2, label = "artifact excerpt" } = {}) {
+  const lines = splitLines(source);
+  if (!lines.length) return "";
+
+  const focusIndexes = findFocusLineIndexes(lines, focusTerms);
+  const center = focusIndexes.length ? focusIndexes[Math.floor(focusIndexes.length / 2)] : Math.floor(lines.length / 2);
+  const start = Math.max(0, center - radius);
+  let end = Math.min(lines.length, start + maxLines);
+  const boundedStart = Math.max(0, end - maxLines);
+
+  const excerptLines = [];
+  if (boundedStart > 0) excerptLines.push("…");
+  for (let index = boundedStart; index < end; index += 1) {
+    excerptLines.push(lineNumberLine(index + 1, lines[index]));
+  }
+  if (end < lines.length) excerptLines.push("…");
+
+  const focusLabel = focusTerms.length ? `focus: ${focusTerms.join(", ")}` : "focus: stage body";
+  return `${label} (${focusLabel})\n${excerptLines.join("\n")}`;
 }
 
 function facts(entries) {
   return entries.filter((entry) => entry.value !== "" && entry.value !== undefined);
 }
 
-function buildStage(id, label, kind, status, artifactPath, structuredFacts, rawSource, rawExcerpt) {
+function buildStage(id, label, kind, status, artifactPath, structuredFacts, rawSource, excerptOptions = {}) {
   return {
     id,
     label,
@@ -238,7 +281,7 @@ function buildStage(id, label, kind, status, artifactPath, structuredFacts, rawS
     artifactPath,
     structuredFacts: facts(structuredFacts),
     rawSource,
-    rawExcerpt: rawExcerpt || makeExcerpt(rawSource)
+    rawExcerpt: makeExcerpt(rawSource, excerptOptions)
   };
 }
 
@@ -250,7 +293,7 @@ function buildStages(snapshot, from, to) {
     buildStage("00", "Human Input", "reference", "captured", snapshot.stagePaths["00"], [
       { key: "request.prompt", value: snapshot.heroPromptFromArtifact },
       { key: "request.mapping", value: `${from} -> ${to}` }
-    ], snapshot.artifactSources.humanRequest),
+    ], snapshot.artifactSources.humanRequest, { focusTerms: ["isso precisa ficar um pouco mais abaixo"], label: "human request.md excerpt" }),
 
     buildStage("01", "Operator Translation", "reference", snapshot.operator.policyAllowed ? "allowed" : "blocked", snapshot.stagePaths["01"], [
       { key: "intent.type", value: snapshot.operator.type },
@@ -261,7 +304,7 @@ function buildStages(snapshot, from, to) {
       { key: "policy.checks", value: snapshot.operator.policyChecks.map((check) => `${check.check}:${check.status}`).join(" | ") },
       { key: "operator.rationale", value: snapshot.operator.rationale.join(" · ") },
       { key: "operator.confidence", value: `${Math.round(snapshot.operator.confidence * 100)}%` }
-    ], snapshot.artifactSources.operator, snapshot.operator.decisionReason),
+    ], snapshot.artifactSources.operator, { focusTerms: ["axis: header_body_gap", "action: auto_apply", snapshot.operator.decisionReason], label: "operator-translation.yaml excerpt" }),
 
     buildStage("02", "Canonical Edit", "reference", "generated", snapshot.stagePaths["02"], [
       { key: "edit.id", value: snapshot.canonical.editId },
@@ -273,7 +316,7 @@ function buildStages(snapshot, from, to) {
       { key: "blast.screens", value: snapshot.canonical.blastRadius.screens.join(", ") },
       { key: "blast.expected", value: snapshot.canonical.blastRadius.expectedSideEffects.join(" · ") },
       { key: "forbidden.changes", value: snapshot.canonical.blastRadius.forbiddenChanges.join(", ") }
-    ], snapshot.artifactSources.uiEdit),
+    ], snapshot.artifactSources.uiEdit, { focusTerms: ["target: place_card.header_body_gap", "from: cozy", "to: relaxed"], label: "ui-edit.yaml excerpt" }),
 
     buildStage("03", "Semantic IR", "reference", "resolved", snapshot.stagePaths["03"], [
       { key: "ir.component", value: snapshot.ir.component },
@@ -282,14 +325,14 @@ function buildStages(snapshot, from, to) {
       { key: "ir.before", value: `${snapshot.ir.beforeState} / ${snapshot.ir.beforeAlias} / ${snapshot.ir.beforePx}px` },
       { key: "ir.after", value: `${snapshot.ir.afterState} / ${snapshot.ir.afterAlias} / ${snapshot.ir.afterPx}px` },
       { key: "ir.invariants", value: String(snapshot.ir.invariantCount) }
-    ], snapshot.artifactSources.ir),
+    ], snapshot.artifactSources.ir, { focusTerms: ["header_body_gap", "before:", "after:"], label: "ui-ir.yaml excerpt" }),
 
     buildStage("04", "Token Resolution", "reference", "resolved", snapshot.stagePaths["04"], [
       { key: "token.before", value: `${fromToken.alias} => ${fromToken.resolved.value}${fromToken.resolved.unit}` },
       { key: "token.after", value: `${toToken.alias} => ${toToken.resolved.value}${toToken.resolved.unit}` },
       { key: "token.active_before", value: snapshot.tokens.beforeActive },
       { key: "token.active_after", value: snapshot.tokens.afterActive }
-    ], snapshot.artifactSources.resolvedTokens),
+    ], snapshot.artifactSources.resolvedTokens, { focusTerms: ["headerBodyGap", `"${from}"`, `"${to}"`], label: "resolved-tokens.json excerpt" }),
 
     buildStage("08", "Verification", "verification", snapshot.verification.checks.every((check) => check.status === "pass") ? "pass" : "fail", `${snapshot.stagePaths["08-report"]} + ${snapshot.stagePaths["08-diff"]}`, [
       { key: "verify.checks", value: snapshot.verification.checks.map((check) => `${check.id}:${check.status}`).join(" | ") },
@@ -297,7 +340,7 @@ function buildStages(snapshot, from, to) {
       { key: "verify.unchanged", value: snapshot.verification.unchanged.join(" · ") },
       { key: "visual.expected", value: snapshot.verification.visualExpected.join(" · ") },
       { key: "visual.unchanged", value: snapshot.verification.visualUnchanged.join(" · ") }
-    ], `${snapshot.artifactSources.report}\n\n${snapshot.artifactSources.semanticDiff}`, `checks:${snapshot.verification.checks.length} | unchanged:${snapshot.verification.unchanged.join(", ")}`),
+    ], `${snapshot.artifactSources.report}\n\n${snapshot.artifactSources.semanticDiff}`, { focusTerms: ["checks:", "What changed", "What did NOT change"], label: "report + semantic-diff excerpt" }),
 
     buildStage("09", "Ledger", "verification", "recorded", snapshot.stagePaths["09"], [
       { key: "ledger.total_events", value: String(snapshot.ledgerSummary.totalEvents) },
@@ -308,7 +351,7 @@ function buildStages(snapshot, from, to) {
           .map(([stage, count]) => `${stage}:${count}`)
           .join(" | ")
       }
-    ], snapshot.artifactSources.ledger),
+    ], snapshot.artifactSources.ledger, { focusTerms: ["rollback", "verification_completed"], label: "events.jsonl excerpt" }),
 
     buildStage("10", "Rollback Plan", "rollback", "ready", snapshot.stagePaths["10"], [
       { key: "rollback.id", value: snapshot.rollback.id },
@@ -316,7 +359,7 @@ function buildStages(snapshot, from, to) {
       { key: "rollback.steps", value: String(snapshot.rollback.steps.length) },
       { key: "rollback.restore", value: `${snapshot.rollback.successState} (${snapshot.rollback.successPx}px)` },
       { key: "rollback.files", value: snapshot.rollback.stepFiles.flat().join(" | ") }
-    ], snapshot.artifactSources.rollbackPlan, snapshot.rollback.steps[0])
+    ], snapshot.artifactSources.rollbackPlan, { focusTerms: ["rollback_id", "target_edit_id", "header_body_gap"], label: "rollback-plan.yaml excerpt" })
   ];
 }
 

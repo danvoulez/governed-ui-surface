@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { PlaceCardPreview } from "./components/PlaceCardPreview";
 import { applyPipeline, getArtifactSnapshot, promptPresets, rollbackPipeline, runPipeline } from "./pipeline/runner";
-import type { PipelineResult, StageFact, StageKind } from "./pipeline/types";
+import type { PipelineResult, StageFact, StageKind, StageView } from "./pipeline/types";
 
 type StageViewMode = "facts" | "excerpt";
 
@@ -30,10 +30,12 @@ const operationLabel: Record<PipelineResult["mode"] | "initial", string> = {
 };
 
 const stageKindLabel: Record<StageKind, string> = {
-  reference: "Canonical reference",
-  verification: "Verification",
-  rollback: "Rollback"
+  reference: "Reference chain",
+  verification: "Verification + ledger",
+  rollback: "Rollback controls"
 };
+
+const stageKindOrder: StageKind[] = ["reference", "verification", "rollback"];
 
 export default function App() {
   const [input, setInput] = useState(promptPresets[0]);
@@ -49,6 +51,12 @@ export default function App() {
   const beforeGap = proposed.canonicalEdit.from;
   const afterGap = operation === "initial" ? beforeGap : active.canonicalEdit.to;
   const deltaPx = active.tokens.after.resolved.value - active.tokens.before.resolved.value;
+  const stageByKind = useMemo(() => {
+    const groups = new Map<StageKind, StageView[]>();
+    for (const kind of stageKindOrder) groups.set(kind, []);
+    for (const stage of active.stages) groups.get(stage.kind)?.push(stage);
+    return groups;
+  }, [active.stages]);
 
   return (
     <div className="layout">
@@ -152,8 +160,15 @@ export default function App() {
 
       <section>
         <h2>Operator console (artifact-backed)</h2>
-        <ul className="stages">
-          {active.stages.map((stage) => {
+        <div className="console-evidence">
+          <span>Canonical source of truth: <code>ui-canon/final-placecard/</code></span>
+          <span>Inspector mode is artifact-backed, never generated ad hoc.</span>
+        </div>
+        {stageKindOrder.map((kind) => (
+          <div className="stage-cluster" key={kind}>
+            <h3>{stageKindLabel[kind]}</h3>
+            <ul className="stages">
+          {(stageByKind.get(kind) ?? []).map((stage) => {
             const mode = stageMode[stage.id] ?? "facts";
             return (
               <li key={stage.id} data-kind={stage.kind}>
@@ -164,10 +179,10 @@ export default function App() {
                     <span className="status-pill" data-status={stage.status}>{stage.status}</span>
                   </div>
                 </div>
-                <span>Artifact: <code>{stage.artifactPath}</code></span>
+                <span className="artifact-path">Artifact path: <code>{stage.artifactPath}</code></span>
                 <div className="view-toggle" role="tablist" aria-label={`Inspect ${stage.label}`}>
-                  <button className={mode === "facts" ? "active" : ""} onClick={() => setStageMode((prev) => ({ ...prev, [stage.id]: "facts" }))}>Facts</button>
-                  <button className={mode === "excerpt" ? "active" : ""} onClick={() => setStageMode((prev) => ({ ...prev, [stage.id]: "excerpt" }))}>Excerpt</button>
+                  <button className={mode === "facts" ? "active" : ""} onClick={() => setStageMode((prev) => ({ ...prev, [stage.id]: "facts" }))}>Facts (normalized)</button>
+                  <button className={mode === "excerpt" ? "active" : ""} onClick={() => setStageMode((prev) => ({ ...prev, [stage.id]: "excerpt" }))}>Excerpt (source-grounded)</button>
                 </div>
 
                 {mode === "facts" ? groupFacts(stage.structuredFacts).map(([group, entries]) => (
@@ -186,7 +201,9 @@ export default function App() {
               </li>
             );
           })}
-        </ul>
+            </ul>
+          </div>
+        ))}
 
         <div className="panel">
           <h3>Verification evidence (08)</h3>

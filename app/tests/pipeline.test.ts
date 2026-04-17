@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import pkg from "../package.json";
 import { applyPipeline, getArtifactSnapshot, rollbackPipeline, runPipeline, canonicalAxes, projectedAxes } from "../src/pipeline/runner";
 
 const toCanonical = (axis: string) => axis.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
@@ -40,6 +41,18 @@ describe("governed artifact-backed pipeline", () => {
     expect(operatorStage?.structuredFacts.some((fact) => fact.key === "intent.axis" && fact.value === "header_body_gap")).toBe(true);
     expect(operatorStage?.rawSource).toContain("axis: header_body_gap");
     expect(operatorStage?.rawExcerpt?.length).toBeGreaterThan(0);
+    expect(operatorStage?.rawExcerpt).toContain("operator-translation.yaml excerpt");
+    expect(operatorStage?.rawExcerpt).toContain("│");
+  });
+
+  it("excerpt windows are bounded and centered on artifact-relevant focus", () => {
+    const result = runPipeline("isso precisa ficar um pouco mais abaixo");
+    const verificationStage = result.stages.find((stage) => stage.id === "08");
+    const excerptLines = verificationStage?.rawExcerpt?.split("\n") ?? [];
+
+    expect(excerptLines.length).toBeLessThanOrEqual(15);
+    expect(verificationStage?.rawExcerpt).toContain("focus:");
+    expect(verificationStage?.rawSource).toContain("## What did NOT change");
   });
 
   it("rollback trace shows target edit and restored state", () => {
@@ -78,6 +91,11 @@ describe("governed artifact-backed pipeline", () => {
     expect(result.stages.map((stage) => stage.id)).toEqual(["00", "01", "02", "03", "04", "08", "09", "10"]);
     expect(result.stages.find((stage) => stage.id === "10")?.kind).toBe("rollback");
     expect(result.stages.every((stage) => stage.artifactPath.includes("ui-canon/final-placecard"))).toBe(true);
+  });
+
+  it("tooling alignment remains installable without peer-conflict workaround", () => {
+    expect(pkg.devDependencies.vite).toMatch(/^\^8\./);
+    expect(pkg.devDependencies["@vitejs/plugin-react"]).toMatch(/^\^5\./);
   });
 
   it("cli-facing and app-facing snapshots share the same core truth", () => {

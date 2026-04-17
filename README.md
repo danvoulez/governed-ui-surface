@@ -44,7 +44,7 @@ You type a vague request like:
 
 ```bash
 cd app
-npm install
+npm ci
 npm run dev
 ```
 
@@ -54,7 +54,9 @@ Open the local Vite URL (usually `http://localhost:5173`).
 
 ```bash
 cd app
+npm ci
 npm test
+npm run build
 ```
 
 Test coverage includes:
